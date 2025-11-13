@@ -358,6 +358,18 @@ body::after {
   border-color: var(--text-primary);
 }
 
+/* Danger button (for destructive actions) */
+.btn-secondary.danger {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
+.btn-secondary.danger:hover {
+  background: #ff4444;
+  color: #fff;
+  border-color: #ff4444;
+}
+
 .btn:active, .btn-primary:active, .btn-secondary:active {
   transform: scale(0.98);
 }
@@ -473,7 +485,7 @@ body::after {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-primary);
   color: var(--text-primary);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-family: 'Courier New', monospace;
   text-transform: none;
 }
@@ -524,7 +536,18 @@ body::after {
   font-variant-numeric: tabular-nums;
 }
 
-/* Visualizer - FIX CRÍTICO */
+/* Live status animation */
+.stat-value.live {
+  color: #ff4444;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Visualizer */
 .visualizer {
   position: relative;
   width: 100%;
@@ -762,6 +785,10 @@ body::after {
     flex-direction: column;
   }
 
+  #stream-link {
+    font-size: 0.7rem;
+  }
+
   .controls {
     flex-direction: column;
   }
@@ -815,4 +842,14 @@ body::after {
 body.dark-mode .btn-primary:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .btn-secondary.danger {
+  border-color: #ff6666;
+  color: #ff6666;
+}
+
+body.dark-mode .btn-secondary.danger:hover {
+  background: #ff6666;
+  color: #000;
 }
