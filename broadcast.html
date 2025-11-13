@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>broadcast — playground mk-air</title>
+  <meta name="description" content="Start your ephemeral live audio broadcast">
+  
+  <!-- Favicon SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f2f2f0'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">playground mk-air</div>
+      <div class="tagline">broadcast</div>
+    </div>
+    <div class="header-controls">
+      <button id="themeToggle" class="header-btn">
+        <span id="themeIcon">◐</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="main">
+      
+      <!-- Setup view -->
+      <div id="setup-view" class="view">
+        <div class="card centered">
+          <h2>ready to broadcast?</h2>
+          <p>you'll need to allow microphone access to start.</p>
+          <p>your stream will be live as soon as you start, and will disappear when you stop.</p>
+          
+          <div class="cta">
+            <button id="start-broadcast" class="btn-primary large" disabled>
+              start broadcast
+            </button>
+          </div>
+
+          <div class="notice">
+            no recording. no archive. just presence.
+          </div>
+        </div>
+      </div>
+
+      <!-- Broadcast view -->
+      <div id="broadcast-view" class="view hidden">
+        
+        <!-- Stream link -->
+        <div class="card">
+          <div class="stream-link-container">
+            <label class="stream-link-label">share this link with your listeners</label>
+            <div class="stream-link-input">
+              <input type="text" id="stream-link" readonly>
+              <button id="copy-link" class="btn-secondary">copy</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-label">status</span>
+            <span class="stat-value">● live</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">listeners</span>
+            <span class="stat-value" id="listener-count">0</span>
+          </div>
+        </div>
+
+        <!-- Visualizer -->
+        <div class="visualizer">
+          <canvas id="visualizer"></canvas>
+          <div class="visualizer-label">your audio</div>
+        </div>
+
+        <!-- Notice -->
+        <div class="notice large">
+          this broadcast will not be recorded.<br>
+          when you stop, it will disappear forever.
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+          <button id="stop-broadcast" class="btn-secondary">
+            stop broadcast
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <a href="/" class="back-link">← back to playground</a>
+      <span class="separator">•</span>
+      <span class="version">mk-air v0.1</span>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="broadcast.js"></script>
+  <script>
+    // Theme Toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+
+    themeToggle.addEventListener('click', () => {
+      html.classList.toggle('dark-mode');
+    });
+  </script>
+</body>
+</html>
