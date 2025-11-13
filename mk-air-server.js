@@ -4,7 +4,14 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const io = require('socket.io')(http, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
+});
 const path = require('path');
 
 // store active rooms
@@ -46,11 +53,12 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     
     if (!room) {
+      console.log('room not found:', roomId);
       socket.emit('room-not-found');
       return;
     }
 
-    console.log('listener joined:', roomId);
+    console.log('listener joined room:', roomId, 'socket:', socket.id);
     socket.join(roomId);
     room.listeners.add(socket.id);
     
@@ -63,6 +71,7 @@ io.on('connection', (socket) => {
 
   // webrtc signaling
   socket.on('offer', (data) => {
+    console.log('offer sent to:', data.target);
     socket.to(data.target).emit('offer', {
       offer: data.offer,
       broadcaster: socket.id
@@ -70,6 +79,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('answer', (data) => {
+    console.log('answer sent to:', data.target);
     socket.to(data.target).emit('answer', {
       answer: data.answer,
       listener: socket.id
@@ -98,6 +108,7 @@ io.on('connection', (socket) => {
         // remove listener
         room.listeners.delete(socket.id);
         io.to(roomId).emit('listener-count', room.listeners.size);
+        console.log('listener left room:', roomId);
       }
     }
   });
