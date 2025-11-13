@@ -15,7 +15,7 @@
   <div class="header">
     <div>
       <div class="brand">playground mk-air</div>
-      <div class="tagline">listen</div>
+      <div class="tagline" id="timestamp"></div>
     </div>
     <div class="header-controls">
       <button id="themeToggle" class="header-btn">
@@ -113,9 +113,15 @@
     </div>
 
     <div class="footer">
-      <a href="/" class="back-link">← back to playground</a>
-      <span class="separator">•</span>
-      <span class="version">mk-air v0.1</span>
+      <div class="footer-content">
+        <a href="/" class="back-link">← back</a>
+        <span class="separator">•</span>
+        <span class="version">mk-air v0.1</span>
+        <span class="separator">•</span>
+        <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
+        <span class="separator">•</span>
+        <a href="https://buymeacoffee.com/nbronzina" target="_blank">support this project</a>
+      </div>
     </div>
   </div>
 
@@ -130,6 +136,17 @@
       html.classList.toggle('dark-mode');
       console.log('[THEME] Toggled to:', html.classList.contains('dark-mode') ? 'dark' : 'light');
     });
+
+    // Timestamp
+    function updateTimestamp() {
+      const now = new Date();
+      const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('timestamp').textContent = `${date} — ${time}`;
+    }
+    
+    updateTimestamp();
+    setInterval(updateTimestamp, 1000);
   </script>
 </body>
 </html>
