@@ -27,40 +27,46 @@
   <div class="container">
     <div class="main">
       
-      <!-- Connecting state -->
+      <!-- Connecting view -->
       <div id="connecting-view" class="view">
-        <div class="card centered">
+        <div class="card centered large">
           <h2>connecting to stream...</h2>
           <div class="spinner"></div>
         </div>
       </div>
 
-      <!-- Stream not found -->
+      <!-- Error view -->
       <div id="error-view" class="view hidden">
-        <div class="card centered">
+        <div class="card centered large">
           <h2>stream not found</h2>
           <p>this session has ended or doesn't exist.</p>
           <p>streams on mk-air are ephemeral — they only exist while live.</p>
-          <a href="/" class="btn-primary">back to playground</a>
+          <div class="cta">
+            <a href="/" class="btn-primary large">← back to playground</a>
+          </div>
         </div>
       </div>
 
-      <!-- Listening state -->
+      <!-- Listen view -->
       <div id="listen-view" class="view hidden">
-        <div class="stream-info">
-          <div class="stat">
-            <span class="stat-label">listening to</span>
-            <span class="stat-value" id="room-display">—</span>
+        
+        <!-- Room info -->
+        <div class="card">
+          <div style="text-align: center;">
+            <h2>● live</h2>
+            <p style="margin-top: 0.5rem; color: var(--text-tertiary); font-size: 0.75rem;">
+              listening to <span id="room-display" style="font-weight: 600; color: var(--text-primary);"></span>
+            </p>
           </div>
-          
+        </div>
+
+        <!-- Stats -->
+        <div class="stats">
           <div class="stat">
             <span class="stat-label">others listening</span>
             <span class="stat-value" id="listener-count">0</span>
           </div>
         </div>
-
-        <!-- Hidden audio element -->
-        <audio id="remote-audio" autoplay></audio>
 
         <!-- Visualizer -->
         <div class="visualizer">
@@ -70,8 +76,8 @@
 
         <!-- Notice -->
         <div class="notice large">
-          this session will not be recorded.<br>
-          it exists only in this moment.
+          this stream is not being recorded.<br>
+          when it ends, it will be gone forever.
         </div>
 
         <!-- Controls -->
@@ -80,15 +86,21 @@
             leave stream
           </button>
         </div>
+
+        <!-- Hidden audio element -->
+        <audio id="remote-audio" autoplay style="display: none;"></audio>
+
       </div>
 
-      <!-- Stream ended -->
+      <!-- Ended view -->
       <div id="ended-view" class="view hidden">
-        <div class="card centered">
+        <div class="card centered large">
           <h2>stream ended</h2>
           <p>the performance has concluded.</p>
           <p>nothing was recorded. it existed only in the moment.</p>
-          <a href="/" class="btn-primary">back to playground</a>
+          <div class="cta">
+            <a href="/" class="btn-primary large">← back to playground</a>
+          </div>
         </div>
       </div>
 
