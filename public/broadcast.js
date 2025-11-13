@@ -1,34 +1,35 @@
 // mk-air broadcast client
-// handles webrtc broadcasting and visualizer with audio source selection
+// handles dual audio sources: microphone + system audio mixed
 
 const socket = io();
 
 // dom elements
-const setupView = document.getElementById('setup-view');
+const micView = document.getElementById('mic-view');
+const sourceView = document.getElementById('source-view');
 const broadcastView = document.getElementById('broadcast-view');
+const requestMicBtn = document.getElementById('request-mic');
+const addSystemAudioBtn = document.getElementById('add-system-audio');
 const startBtn = document.getElementById('start-broadcast');
 const stopBtn = document.getElementById('stop-broadcast');
 const copyLinkBtn = document.getElementById('copy-link');
 const streamLinkInput = document.getElementById('stream-link');
 const listenerCountEl = document.getElementById('listener-count');
+const audioDeviceSelect = document.getElementById('audio-device-select');
+const sourcesStatus = document.getElementById('sources-status');
+const broadcastSources = document.getElementById('broadcast-sources');
 const canvas = document.getElementById('visualizer');
 const canvasCtx = canvas.getContext('2d');
 
-// audio source selection
-const sourceBtns = document.querySelectorAll('.source-btn');
-const deviceSelector = document.getElementById('device-selector');
-const audioDeviceSelect = document.getElementById('audio-device-select');
-const sourceHint = document.getElementById('source-hint');
-
 // state
-let localStream = null;
+let micStream = null;
+let systemStream = null;
+let mixedStream = null;
 let audioContext = null;
 let analyser = null;
 let roomId = null;
 let peers = new Map();
 let isAnimating = false;
-let selectedSource = 'microphone';
-let audioDevices = [];
+let hasSystemAudio = false;
 
 // webrtc configuration
 const rtcConfig = {
@@ -38,128 +39,185 @@ const rtcConfig = {
   ]
 };
 
-// source selection
-sourceBtns.forEach(btn => {
-  btn.addEventListener('click', function() {
-    sourceBtns.forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    selectedSource = this.dataset.source;
-    
-    if (selectedSource === 'microphone') {
-      deviceSelector.style.display = 'block';
-      sourceHint.textContent = 'capture audio from your microphone or instrument';
-    } else {
-      deviceSelector.style.display = 'none';
-      sourceHint.textContent = 'capture audio from your browser tab or entire screen (music, daw, anything)';
-    }
-  });
-});
-
-// initialize
-async function init() {
+// STEP 1: Request microphone
+requestMicBtn.addEventListener('click', async () => {
   try {
-    // enumerate audio devices
-    await enumerateDevices();
-    startBtn.disabled = false;
-  } catch (err) {
-    console.error('error initializing:', err);
-  }
-}
-
-// enumerate audio input devices
-async function enumerateDevices() {
-  try {
-    // request initial permission to get device labels
-    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    tempStream.getTracks().forEach(track => track.stop());
+    requestMicBtn.disabled = true;
+    requestMicBtn.textContent = 'accessing microphone...';
     
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    audioDevices = devices.filter(device => device.kind === 'audioinput');
-    
-    // populate select
-    audioDeviceSelect.innerHTML = '';
-    audioDevices.forEach(device => {
-      const option = document.createElement('option');
-      option.value = device.deviceId;
-      option.textContent = device.label || `microphone ${audioDevices.indexOf(device) + 1}`;
-      audioDeviceSelect.appendChild(option);
+    // get microphone stream
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
     });
     
-    console.log('audio devices enumerated:', audioDevices.length);
+    // enumerate devices
+    await enumerateDevices();
+    
+    // move to source selection
+    micView.classList.add('hidden');
+    sourceView.classList.remove('hidden');
+    
+    updateSourcesStatus();
+    
+  } catch (err) {
+    console.error('microphone access denied:', err);
+    alert('mk-air needs microphone access. please allow and try again.');
+    requestMicBtn.disabled = false;
+    requestMicBtn.textContent = 'allow microphone access';
+  }
+});
+
+// enumerate audio devices
+async function enumerateDevices() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioDevices = devices.filter(d => d.kind === 'audioinput');
+    
+    audioDeviceSelect.innerHTML = '';
+    
+    if (audioDevices.length === 0) {
+      audioDeviceSelect.innerHTML = '<option>default microphone</option>';
+    } else {
+      audioDevices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || `microphone ${index + 1}`;
+        audioDeviceSelect.appendChild(option);
+      });
+    }
   } catch (err) {
     console.error('error enumerating devices:', err);
     audioDeviceSelect.innerHTML = '<option>default microphone</option>';
   }
 }
 
-// get audio stream based on selected source
-async function getAudioStream() {
-  if (selectedSource === 'microphone') {
-    // microphone mode
+// change microphone device
+audioDeviceSelect.addEventListener('change', async () => {
+  try {
     const deviceId = audioDeviceSelect.value;
-    const constraints = {
+    
+    // stop current mic stream
+    if (micStream) {
+      micStream.getTracks().forEach(track => track.stop());
+    }
+    
+    // get new stream with selected device
+    micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: deviceId ? { exact: deviceId } : undefined,
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true
       }
-    };
-    return await navigator.mediaDevices.getUserMedia(constraints);
+    });
     
-  } else {
-    // system audio mode
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        }
-      });
-      
-      // stop video track (we only want audio)
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.stop();
-        stream.removeTrack(videoTrack);
+  } catch (err) {
+    console.error('error changing microphone:', err);
+    alert('failed to switch microphone device');
+  }
+});
+
+// STEP 2: Add system audio (optional)
+addSystemAudioBtn.addEventListener('click', async () => {
+  try {
+    addSystemAudioBtn.disabled = true;
+    addSystemAudioBtn.textContent = 'requesting screen capture...';
+    
+    // get system audio via screen capture
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
       }
-      
-      // check if audio track exists
-      if (stream.getAudioTracks().length === 0) {
-        throw new Error('no audio track in screen capture. make sure to check "share audio" when selecting your source.');
-      }
-      
-      return stream;
-      
-    } catch (err) {
-      if (err.name === 'NotAllowedError') {
-        throw new Error('screen capture permission denied');
-      } else if (err.message.includes('no audio track')) {
-        throw err;
-      } else {
-        throw new Error('screen capture not supported or failed');
-      }
+    });
+    
+    // stop video track
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.stop();
+      stream.removeTrack(videoTrack);
     }
+    
+    // check if has audio
+    if (stream.getAudioTracks().length === 0) {
+      throw new Error('no audio in screen capture. make sure to check "share audio"');
+    }
+    
+    systemStream = stream;
+    hasSystemAudio = true;
+    
+    addSystemAudioBtn.textContent = '✓ system audio added';
+    addSystemAudioBtn.classList.add('active');
+    
+    updateSourcesStatus();
+    
+  } catch (err) {
+    console.error('system audio error:', err);
+    
+    if (err.message.includes('no audio')) {
+      alert(err.message);
+    } else if (err.name === 'NotAllowedError') {
+      alert('screen capture cancelled');
+    }
+    
+    addSystemAudioBtn.disabled = false;
+    addSystemAudioBtn.textContent = '+ add system audio';
+  }
+});
+
+// update sources status
+function updateSourcesStatus() {
+  if (hasSystemAudio) {
+    sourcesStatus.textContent = '🎙️ mic ready · 🖥️ system audio ready';
+  } else {
+    sourcesStatus.textContent = '🎙️ mic ready · no system audio';
   }
 }
 
-// start broadcast
+// STEP 3: Start broadcast (mix streams)
 startBtn.addEventListener('click', async () => {
   try {
     startBtn.disabled = true;
-    startBtn.textContent = 'connecting...';
+    startBtn.textContent = 'starting broadcast...';
     
-    // get audio stream
-    localStream = await getAudioStream();
-    
-    // setup audio context for visualization
+    // create audio context for mixing
     audioContext = new AudioContext();
-    const source = audioContext.createMediaStreamSource(localStream);
+    
+    // create destination for mixed audio
+    const destination = audioContext.createMediaStreamDestination();
+    
+    // add microphone
+    const micSource = audioContext.createMediaStreamSource(micStream);
+    const micGain = audioContext.createGain();
+    micGain.gain.value = 1.0;
+    micSource.connect(micGain);
+    micGain.connect(destination);
+    
+    // add system audio if available
+    if (hasSystemAudio && systemStream) {
+      const systemSource = audioContext.createMediaStreamSource(systemStream);
+      const systemGain = audioContext.createGain();
+      systemGain.gain.value = 0.8; // slightly lower to prioritize voice
+      systemSource.connect(systemGain);
+      systemGain.connect(destination);
+    }
+    
+    // setup analyzer for visualization
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
-    source.connect(analyser);
+    
+    // connect destination to analyser
+    const analyserSource = audioContext.createMediaStreamSource(destination.stream);
+    analyserSource.connect(analyser);
+    
+    // mixed stream to broadcast
+    mixedStream = destination.stream;
     
     // generate room id
     roomId = generateRoomId();
@@ -169,7 +227,7 @@ startBtn.addEventListener('click', async () => {
     
   } catch (err) {
     console.error('error starting broadcast:', err);
-    alert(err.message || 'failed to access audio. please check permissions and try again.');
+    alert('failed to start broadcast: ' + err.message);
     startBtn.disabled = false;
     startBtn.textContent = 'start broadcast';
   }
@@ -183,8 +241,15 @@ socket.on('room-created', (id) => {
   const link = `${window.location.origin}/listen/${id}`;
   streamLinkInput.value = link;
   
-  // switch views
-  setupView.classList.add('hidden');
+  // update broadcast sources display
+  if (hasSystemAudio) {
+    broadcastSources.textContent = '🎙️ microphone + 🖥️ system audio active';
+  } else {
+    broadcastSources.textContent = '🎙️ microphone active';
+  }
+  
+  // switch to broadcast view
+  sourceView.classList.add('hidden');
   broadcastView.classList.remove('hidden');
   
   // start visualizer
@@ -199,9 +264,9 @@ socket.on('listener-joined', async (listenerId) => {
   const peer = new RTCPeerConnection(rtcConfig);
   peers.set(listenerId, peer);
   
-  // add local stream
-  localStream.getTracks().forEach(track => {
-    peer.addTrack(track, localStream);
+  // add mixed stream tracks
+  mixedStream.getTracks().forEach(track => {
+    peer.addTrack(track, mixedStream);
   });
   
   // handle ice candidates
@@ -272,9 +337,15 @@ function cleanup() {
   peers.forEach(peer => peer.close());
   peers.clear();
   
-  // stop local stream
-  if (localStream) {
-    localStream.getTracks().forEach(track => track.stop());
+  // stop streams
+  if (micStream) {
+    micStream.getTracks().forEach(track => track.stop());
+  }
+  if (systemStream) {
+    systemStream.getTracks().forEach(track => track.stop());
+  }
+  if (mixedStream) {
+    mixedStream.getTracks().forEach(track => track.stop());
   }
   
   // close audio context
@@ -347,6 +418,3 @@ window.addEventListener('beforeunload', (e) => {
     e.returnValue = '';
   }
 });
-
-// start
-init();
