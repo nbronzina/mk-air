@@ -15,7 +15,7 @@
   <div class="header">
     <div>
       <div class="brand">playground mk-air</div>
-      <div class="tagline">broadcast</div>
+      <div class="tagline" id="timestamp"></div>
     </div>
     <div class="header-controls">
       <button id="themeToggle" class="header-btn">
@@ -98,7 +98,7 @@
         <div class="stats">
           <div class="stat">
             <span class="stat-label">status</span>
-            <span class="stat-value">● live</span>
+            <span class="stat-value live">● live</span>
           </div>
           <div class="stat">
             <span class="stat-label">listeners</span>
@@ -120,7 +120,7 @@
 
         <!-- Controls -->
         <div class="controls">
-          <button id="stop-broadcast" class="btn-secondary">
+          <button id="stop-broadcast" class="btn-secondary danger">
             stop broadcast
           </button>
         </div>
@@ -130,9 +130,15 @@
     </div>
 
     <div class="footer">
-      <a href="/" class="back-link">← back to playground</a>
-      <span class="separator">•</span>
-      <span class="version">mk-air v0.1</span>
+      <div class="footer-content">
+        <a href="/" class="back-link">← back</a>
+        <span class="separator">•</span>
+        <span class="version">mk-air v0.1</span>
+        <span class="separator">•</span>
+        <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
+        <span class="separator">•</span>
+        <a href="https://buymeacoffee.com/nbronzina" target="_blank">support this project</a>
+      </div>
     </div>
   </div>
 
@@ -146,6 +152,17 @@
     themeToggle.addEventListener('click', () => {
       html.classList.toggle('dark-mode');
     });
+
+    // Timestamp
+    function updateTimestamp() {
+      const now = new Date();
+      const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('timestamp').textContent = `${date} — ${time}`;
+    }
+    
+    updateTimestamp();
+    setInterval(updateTimestamp, 1000);
   </script>
 </body>
 </html>
