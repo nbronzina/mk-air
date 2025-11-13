@@ -328,6 +328,13 @@ body::after {
 
 .btn-primary:hover {
   background: var(--hover-secondary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn-primary.large {
@@ -422,7 +429,7 @@ body::after {
 
 .tag {
   display: inline-block;
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1rem;
   background: rgba(0,0,0,0.03);
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -802,4 +809,10 @@ body::after {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
+}
+
+/* Dark Mode Overrides */
+body.dark-mode .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
 }
