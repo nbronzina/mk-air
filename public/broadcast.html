@@ -31,8 +31,33 @@
       <div id="setup-view" class="view">
         <div class="card centered">
           <h2>ready to broadcast?</h2>
-          <p>you'll need to allow microphone access to start.</p>
-          <p>your stream will be live as soon as you start, and will disappear when you stop.</p>
+          
+          <!-- Audio Source Selection -->
+          <div class="audio-source-section">
+            <label class="stream-link-label">choose your audio source</label>
+            
+            <div class="source-options">
+              <button class="source-btn active" data-source="microphone">
+                <span class="source-icon">🎙️</span>
+                <span class="source-name">microphone</span>
+              </button>
+              
+              <button class="source-btn" data-source="system">
+                <span class="source-icon">🖥️</span>
+                <span class="source-name">system audio</span>
+              </button>
+            </div>
+
+            <!-- Device selector (for microphone mode) -->
+            <div id="device-selector" class="device-selector">
+              <label class="stream-link-label">select device</label>
+              <select id="audio-device-select" class="audio-select">
+                <option value="">loading devices...</option>
+              </select>
+            </div>
+
+            <p class="source-hint" id="source-hint">capture audio from your microphone or instrument</p>
+          </div>
           
           <div class="cta">
             <button id="start-broadcast" class="btn-primary large" disabled>
