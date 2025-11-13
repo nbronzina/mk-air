@@ -60,6 +60,11 @@
           </div>
         </div>
 
+        <!-- Unmute notice (hidden by default) -->
+        <div id="unmute-notice" class="notice large" style="display: none; cursor: pointer; background: var(--active-bg); color: var(--active-text);">
+          🔇 click here to unmute audio
+        </div>
+
         <!-- Stats -->
         <div class="stats">
           <div class="stat">
@@ -88,7 +93,7 @@
         </div>
 
         <!-- Hidden audio element -->
-        <audio id="remote-audio" autoplay style="display: none;"></audio>
+        <audio id="remote-audio" autoplay playsinline style="display: none;"></audio>
 
       </div>
 
@@ -123,6 +128,50 @@
     themeToggle.addEventListener('click', () => {
       html.classList.toggle('dark-mode');
     });
+
+    // Audio unmute helper
+    const remoteAudio = document.getElementById('remote-audio');
+    const unmuteNotice = document.getElementById('unmute-notice');
+
+    // Try to play audio when stream connects
+    remoteAudio.addEventListener('loadedmetadata', async () => {
+      console.log('[AUDIO] Stream loaded, attempting autoplay...');
+      try {
+        remoteAudio.muted = false;
+        remoteAudio.volume = 1.0;
+        await remoteAudio.play();
+        console.log('[AUDIO] Autoplay successful');
+      } catch (err) {
+        console.log('[AUDIO] Autoplay blocked, showing unmute notice');
+        unmuteNotice.style.display = 'block';
+      }
+    });
+
+    // Manual unmute on click
+    unmuteNotice.addEventListener('click', async () => {
+      try {
+        remoteAudio.muted = false;
+        remoteAudio.volume = 1.0;
+        await remoteAudio.play();
+        unmuteNotice.style.display = 'none';
+        console.log('[AUDIO] Manual play successful');
+      } catch (err) {
+        console.error('[AUDIO] Manual play failed:', err);
+      }
+    });
+
+    // Also allow click anywhere on page to unmute
+    document.addEventListener('click', async () => {
+      if (remoteAudio.paused && remoteAudio.srcObject) {
+        try {
+          remoteAudio.muted = false;
+          await remoteAudio.play();
+          unmuteNotice.style.display = 'none';
+        } catch (err) {
+          // Silent fail
+        }
+      }
+    }, { once: true });
   </script>
 </body>
 </html>
