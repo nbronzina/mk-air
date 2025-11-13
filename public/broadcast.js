@@ -1,5 +1,5 @@
 // mk-air broadcast client
-// handles webrtc broadcasting and visualizer
+// handles webrtc broadcasting and visualizer with audio source selection
 
 const socket = io();
 
@@ -14,13 +14,21 @@ const listenerCountEl = document.getElementById('listener-count');
 const canvas = document.getElementById('visualizer');
 const canvasCtx = canvas.getContext('2d');
 
+// audio source selection
+const sourceBtns = document.querySelectorAll('.source-btn');
+const deviceSelector = document.getElementById('device-selector');
+const audioDeviceSelect = document.getElementById('audio-device-select');
+const sourceHint = document.getElementById('source-hint');
+
 // state
 let localStream = null;
 let audioContext = null;
 let analyser = null;
 let roomId = null;
-let peers = new Map(); // listener_id -> RTCPeerConnection
+let peers = new Map();
 let isAnimating = false;
+let selectedSource = 'microphone';
+let audioDevices = [];
 
 // webrtc configuration
 const rtcConfig = {
@@ -30,17 +38,121 @@ const rtcConfig = {
   ]
 };
 
+// source selection
+sourceBtns.forEach(btn => {
+  btn.addEventListener('click', function() {
+    sourceBtns.forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    selectedSource = this.dataset.source;
+    
+    if (selectedSource === 'microphone') {
+      deviceSelector.style.display = 'block';
+      sourceHint.textContent = 'capture audio from your microphone or instrument';
+    } else {
+      deviceSelector.style.display = 'none';
+      sourceHint.textContent = 'capture audio from your browser tab or entire screen (music, daw, anything)';
+    }
+  });
+});
+
 // initialize
 async function init() {
   try {
-    // request microphone access
-    localStream = await navigator.mediaDevices.getUserMedia({ 
+    // enumerate audio devices
+    await enumerateDevices();
+    startBtn.disabled = false;
+  } catch (err) {
+    console.error('error initializing:', err);
+  }
+}
+
+// enumerate audio input devices
+async function enumerateDevices() {
+  try {
+    // request initial permission to get device labels
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tempStream.getTracks().forEach(track => track.stop());
+    
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    audioDevices = devices.filter(device => device.kind === 'audioinput');
+    
+    // populate select
+    audioDeviceSelect.innerHTML = '';
+    audioDevices.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.textContent = device.label || `microphone ${audioDevices.indexOf(device) + 1}`;
+      audioDeviceSelect.appendChild(option);
+    });
+    
+    console.log('audio devices enumerated:', audioDevices.length);
+  } catch (err) {
+    console.error('error enumerating devices:', err);
+    audioDeviceSelect.innerHTML = '<option>default microphone</option>';
+  }
+}
+
+// get audio stream based on selected source
+async function getAudioStream() {
+  if (selectedSource === 'microphone') {
+    // microphone mode
+    const deviceId = audioDeviceSelect.value;
+    const constraints = {
       audio: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true
-      } 
-    });
+      }
+    };
+    return await navigator.mediaDevices.getUserMedia(constraints);
+    
+  } else {
+    // system audio mode
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+      
+      // stop video track (we only want audio)
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.stop();
+        stream.removeTrack(videoTrack);
+      }
+      
+      // check if audio track exists
+      if (stream.getAudioTracks().length === 0) {
+        throw new Error('no audio track in screen capture. make sure to check "share audio" when selecting your source.');
+      }
+      
+      return stream;
+      
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        throw new Error('screen capture permission denied');
+      } else if (err.message.includes('no audio track')) {
+        throw err;
+      } else {
+        throw new Error('screen capture not supported or failed');
+      }
+    }
+  }
+}
+
+// start broadcast
+startBtn.addEventListener('click', async () => {
+  try {
+    startBtn.disabled = true;
+    startBtn.textContent = 'connecting...';
+    
+    // get audio stream
+    localStream = await getAudioStream();
     
     // setup audio context for visualization
     audioContext = new AudioContext();
@@ -49,22 +161,18 @@ async function init() {
     analyser.fftSize = 2048;
     source.connect(analyser);
     
-    console.log('microphone access granted');
-    startBtn.disabled = false;
+    // generate room id
+    roomId = generateRoomId();
+    
+    // create room on server
+    socket.emit('create-room', roomId);
     
   } catch (err) {
-    console.error('microphone access denied:', err);
-    alert('mk-air needs microphone access to broadcast');
+    console.error('error starting broadcast:', err);
+    alert(err.message || 'failed to access audio. please check permissions and try again.');
+    startBtn.disabled = false;
+    startBtn.textContent = 'start broadcast';
   }
-}
-
-// start broadcast
-startBtn.addEventListener('click', async () => {
-  // generate room id
-  roomId = generateRoomId();
-  
-  // create room on server
-  socket.emit('create-room', roomId);
 });
 
 // room created successfully
