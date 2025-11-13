@@ -54,6 +54,8 @@ requestMicBtn.addEventListener('click', async () => {
       }
     });
     
+    console.log('[DEBUG] Microphone access granted');
+    
     // enumerate devices
     await enumerateDevices();
     
@@ -89,6 +91,8 @@ async function enumerateDevices() {
         audioDeviceSelect.appendChild(option);
       });
     }
+    
+    console.log('[DEBUG] Found', audioDevices.length, 'audio devices');
   } catch (err) {
     console.error('error enumerating devices:', err);
     audioDeviceSelect.innerHTML = '<option>default microphone</option>';
@@ -99,6 +103,8 @@ async function enumerateDevices() {
 audioDeviceSelect.addEventListener('change', async () => {
   try {
     const deviceId = audioDeviceSelect.value;
+    
+    console.log('[DEBUG] Switching to device:', deviceId);
     
     // stop current mic stream
     if (micStream) {
@@ -114,6 +120,8 @@ audioDeviceSelect.addEventListener('change', async () => {
         autoGainControl: true
       }
     });
+    
+    console.log('[DEBUG] Successfully switched microphone');
     
   } catch (err) {
     console.error('error changing microphone:', err);
@@ -155,6 +163,8 @@ addSystemAudioBtn.addEventListener('click', async () => {
     addSystemAudioBtn.textContent = '✓ system audio added';
     addSystemAudioBtn.classList.add('active');
     
+    console.log('[DEBUG] System audio added successfully');
+    
     updateSourcesStatus();
     
   } catch (err) {
@@ -186,6 +196,8 @@ startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
     startBtn.textContent = 'starting broadcast...';
     
+    console.log('[DEBUG] ========== STARTING BROADCAST ==========');
+    
     // create audio context for mixing
     audioContext = new AudioContext();
     
@@ -199,6 +211,8 @@ startBtn.addEventListener('click', async () => {
     micSource.connect(micGain);
     micGain.connect(destination);
     
+    console.log('[DEBUG] Microphone connected to mixer');
+    
     // add system audio if available
     if (hasSystemAudio && systemStream) {
       const systemSource = audioContext.createMediaStreamSource(systemStream);
@@ -206,6 +220,7 @@ startBtn.addEventListener('click', async () => {
       systemGain.gain.value = 0.8; // slightly lower to prioritize voice
       systemSource.connect(systemGain);
       systemGain.connect(destination);
+      console.log('[DEBUG] System audio connected to mixer');
     }
     
     // setup analyzer for visualization
@@ -219,11 +234,20 @@ startBtn.addEventListener('click', async () => {
     // mixed stream to broadcast
     mixedStream = destination.stream;
     
+    console.log('[DEBUG] Audio mixing complete');
+    
     // generate room id
     roomId = generateRoomId();
     
+    console.log('[DEBUG] ========================================');
+    console.log('[DEBUG] Generated roomId:', roomId);
+    console.log('[DEBUG] roomId length:', roomId.length);
+    console.log('[DEBUG] roomId type:', typeof roomId);
+    console.log('[DEBUG] ========================================');
+    
     // create room on server
     socket.emit('create-room', roomId);
+    console.log('[DEBUG] Emitted create-room event with roomId:', roomId);
     
   } catch (err) {
     console.error('error starting broadcast:', err);
@@ -235,11 +259,22 @@ startBtn.addEventListener('click', async () => {
 
 // room created successfully
 socket.on('room-created', (id) => {
-  console.log('room created:', id);
+  console.log('[DEBUG] ========================================');
+  console.log('[DEBUG] Received room-created event');
+  console.log('[DEBUG] Server returned ID:', id);
+  console.log('[DEBUG] Client roomId variable:', roomId);
+  console.log('[DEBUG] Are they exactly the same?', id === roomId);
+  console.log('[DEBUG] Server ID length:', id.length);
+  console.log('[DEBUG] Client ID length:', roomId.length);
+  console.log('[DEBUG] ========================================');
   
   // generate and display link
   const link = `${window.location.origin}/listen/${id}`;
   streamLinkInput.value = link;
+  
+  console.log('[DEBUG] Generated link:', link);
+  console.log('[DEBUG] Link in input field:', streamLinkInput.value);
+  console.log('[DEBUG] ========================================');
   
   // update broadcast sources display
   if (hasSystemAudio) {
@@ -258,7 +293,7 @@ socket.on('room-created', (id) => {
 
 // listener joined
 socket.on('listener-joined', async (listenerId) => {
-  console.log('listener joined:', listenerId);
+  console.log('[DEBUG] Listener joined:', listenerId);
   
   // create peer connection
   const peer = new RTCPeerConnection(rtcConfig);
@@ -269,6 +304,8 @@ socket.on('listener-joined', async (listenerId) => {
     peer.addTrack(track, mixedStream);
   });
   
+  console.log('[DEBUG] Added stream tracks to peer for listener:', listenerId);
+  
   // handle ice candidates
   peer.onicecandidate = (event) => {
     if (event.candidate) {
@@ -276,6 +313,7 @@ socket.on('listener-joined', async (listenerId) => {
         target: listenerId,
         candidate: event.candidate
       });
+      console.log('[DEBUG] Sent ICE candidate to listener:', listenerId);
     }
   };
   
@@ -287,27 +325,33 @@ socket.on('listener-joined', async (listenerId) => {
     target: listenerId,
     offer: offer
   });
+  
+  console.log('[DEBUG] Sent offer to listener:', listenerId);
 });
 
 // answer received from listener
 socket.on('answer', async (data) => {
+  console.log('[DEBUG] Received answer from listener:', data.listener);
   const peer = peers.get(data.listener);
   if (peer) {
     await peer.setRemoteDescription(data.answer);
-    console.log('answer received from:', data.listener);
+    console.log('[DEBUG] Set remote description for listener:', data.listener);
   }
 });
 
 // ice candidate received
 socket.on('ice-candidate', async (data) => {
+  console.log('[DEBUG] Received ICE candidate from:', data.from);
   const peer = peers.get(data.from);
   if (peer && data.candidate) {
     await peer.addIceCandidate(data.candidate);
+    console.log('[DEBUG] Added ICE candidate from:', data.from);
   }
 });
 
 // update listener count
 socket.on('listener-count', (count) => {
+  console.log('[DEBUG] Listener count updated:', count);
   listenerCountEl.textContent = count;
 });
 
@@ -315,6 +359,11 @@ socket.on('listener-count', (count) => {
 copyLinkBtn.addEventListener('click', () => {
   streamLinkInput.select();
   document.execCommand('copy');
+  
+  console.log('[DEBUG] ========================================');
+  console.log('[DEBUG] COPY LINK CLICKED');
+  console.log('[DEBUG] Link copied to clipboard:', streamLinkInput.value);
+  console.log('[DEBUG] ========================================');
   
   const originalText = copyLinkBtn.textContent;
   copyLinkBtn.textContent = 'copied!';
@@ -326,6 +375,7 @@ copyLinkBtn.addEventListener('click', () => {
 // stop broadcast
 stopBtn.addEventListener('click', () => {
   if (confirm('end this broadcast? listeners will be disconnected.')) {
+    console.log('[DEBUG] Broadcast stopped by user');
     cleanup();
     window.location.href = '/';
   }
@@ -333,6 +383,8 @@ stopBtn.addEventListener('click', () => {
 
 // cleanup
 function cleanup() {
+  console.log('[DEBUG] Cleaning up broadcast...');
+  
   // stop all peer connections
   peers.forEach(peer => peer.close());
   peers.clear();
@@ -357,6 +409,8 @@ function cleanup() {
   socket.disconnect();
   
   isAnimating = false;
+  
+  console.log('[DEBUG] Cleanup complete');
 }
 
 // start visualizer
@@ -365,6 +419,7 @@ function startVisualizer() {
   canvas.height = canvas.offsetHeight;
   isAnimating = true;
   drawVisualizer();
+  console.log('[DEBUG] Visualizer started');
 }
 
 function drawVisualizer() {
@@ -408,7 +463,9 @@ function drawVisualizer() {
 
 // utility: generate room id
 function generateRoomId() {
-  return Math.random().toString(36).substring(2, 8);
+  const id = Math.random().toString(36).substring(2, 8);
+  console.log('[DEBUG] generateRoomId() called, generated:', id);
+  return id;
 }
 
 // handle page unload
@@ -417,4 +474,17 @@ window.addEventListener('beforeunload', (e) => {
     e.preventDefault();
     e.returnValue = '';
   }
+});
+
+// socket connection status
+socket.on('connect', () => {
+  console.log('[DEBUG] Socket connected:', socket.id);
+});
+
+socket.on('disconnect', () => {
+  console.log('[DEBUG] Socket disconnected');
+});
+
+socket.on('connect_error', (error) => {
+  console.error('[DEBUG] Socket connection error:', error);
 });
