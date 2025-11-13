@@ -1,60 +1,23 @@
 {
   "name": "mk-air",
   "version": "0.1.0",
-  "description": "ephemeral live audio streams that exist only in the moment",
+  "description": "ephemeral live audio streams",
   "main": "mk-air-server.js",
   "scripts": {
-    "start": "node mk-air-server.js",
-    "dev": "nodemon mk-air-server.js"
+    "start": "node mk-air-server.js"
   },
   "keywords": [
     "live-streaming",
     "ephemeral",
-    "webrtc",
-    "audio",
-    "broadcast"
+    "webrtc"
   ],
-  "author": "nicolás bronzina",
+  "author": "nicolas bronzina",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.6.1"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  },
   "engines": {
     "node": ">=16.0.0"
   }
 }
-```
-
----
-
-## 📄 .gitignore
-```
-# dependencies
-node_modules/
-
-# environment
-.env
-.env.local
-
-# logs
-logs/
-*.log
-npm-debug.log*
-
-# os files
-.DS_Store
-Thumbs.db
-
-# editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# build
-dist/
-build/
