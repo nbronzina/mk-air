@@ -200,6 +200,21 @@ body::after {
   overflow: hidden;
 }
 
+/* How it works + What to broadcast grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 769px) {
+  .info-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+}
+
 .card.large {
   padding: 50px 40px;
 }
