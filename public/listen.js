@@ -86,12 +86,27 @@ socket.on('offer', async (data) => {
     console.log('[DEBUG] REMOTE STREAM RECEIVED');
     console.log('[DEBUG] Stream:', event.streams[0]);
     console.log('[DEBUG] Audio tracks:', event.streams[0].getAudioTracks().length);
+    console.log('[DEBUG] Audio tracks details:', event.streams[0].getAudioTracks());
     console.log('[DEBUG] ========================================');
     
-    remoteAudio.srcObject = event.streams[0];
+    const stream = event.streams[0];
+    
+    // Set audio element
+    remoteAudio.srcObject = stream;
+    remoteAudio.volume = 1.0;
+    
+    // Try to play immediately
+    remoteAudio.play()
+      .then(() => {
+        console.log('[DEBUG] Audio autoplay successful');
+      })
+      .catch(err => {
+        console.log('[DEBUG] Audio autoplay blocked:', err.message);
+        console.log('[DEBUG] User interaction required to play audio');
+      });
     
     // setup visualizer
-    setupVisualizer(event.streams[0]);
+    setupVisualizer(stream);
     
     // show listen view
     connectingView.classList.add('hidden');
@@ -169,24 +184,48 @@ socket.on('stream-ended', () => {
 
 // setup visualizer
 function setupVisualizer(stream) {
+  console.log('[DEBUG] ========================================');
   console.log('[DEBUG] Setting up visualizer');
-  audioContext = new AudioContext();
-  const source = audioContext.createMediaStreamSource(stream);
-  analyser = audioContext.createAnalyser();
-  analyser.fftSize = 2048;
-  source.connect(analyser);
+  console.log('[DEBUG] Stream tracks:', stream.getTracks());
+  console.log('[DEBUG] Audio tracks:', stream.getAudioTracks());
   
-  canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
-  
-  isAnimating = true;
-  drawVisualizer();
-  console.log('[DEBUG] Visualizer started');
+  try {
+    // Create audio context
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    console.log('[DEBUG] AudioContext created');
+    
+    // Create source from stream
+    const source = audioContext.createMediaStreamSource(stream);
+    console.log('[DEBUG] MediaStreamSource created');
+    
+    // Create analyser
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.8;
+    console.log('[DEBUG] Analyser created');
+    
+    // Connect source to analyser
+    source.connect(analyser);
+    console.log('[DEBUG] Source connected to analyser');
+    
+    // Setup canvas
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    console.log('[DEBUG] Canvas size:', canvas.width, 'x', canvas.height);
+    
+    // Start animation
+    isAnimating = true;
+    drawVisualizer();
+    console.log('[DEBUG] Visualizer started successfully');
+    console.log('[DEBUG] ========================================');
+  } catch (err) {
+    console.error('[DEBUG] Error setting up visualizer:', err);
+  }
 }
 
 // draw visualizer
 function drawVisualizer() {
-  if (!isAnimating) return;
+  if (!isAnimating || !analyser) return;
   
   requestAnimationFrame(drawVisualizer);
   
@@ -278,6 +317,14 @@ socket.on('disconnect', () => {
 
 socket.on('connect_error', (error) => {
   console.error('[DEBUG] Socket connection error:', error);
+});
+
+// Handle window resize
+window.addEventListener('resize', () => {
+  if (canvas && isAnimating) {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+  }
 });
 
 // start
