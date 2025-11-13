@@ -94,11 +94,17 @@ socket.on('offer', async (data) => {
     remoteAudio.volume = 1.0;
     remoteAudio.muted = false;
     
+    // Safari needs these attributes
+    remoteAudio.setAttribute('webkit-playsinline', '');
+    remoteAudio.setAttribute('playsinline', '');
+    
     // Try to play immediately
     tryPlayAudio();
     
-    // setup visualizer
-    setupVisualizer(stream);
+    // Setup visualizer with delay for mobile
+    setTimeout(() => {
+      setupVisualizer(stream);
+    }, 200);
     
     // show listen view
     connectingView.classList.add('hidden');
@@ -148,16 +154,28 @@ socket.on('offer', async (data) => {
   }
 });
 
-// Try to play audio
+// Try to play audio (Safari-compatible)
 async function tryPlayAudio() {
   try {
-    await remoteAudio.play();
-    console.log('[DEBUG] ✅ Audio autoplay successful');
-    audioPlaying = true;
-    unmuteNotice.style.display = 'none';
+    // Safari needs explicit promise handling
+    const playPromise = remoteAudio.play();
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log('[DEBUG] ✅ Audio autoplay successful');
+          audioPlaying = true;
+          unmuteNotice.style.display = 'none';
+        })
+        .catch(err => {
+          console.log('[DEBUG] ❌ Audio autoplay blocked:', err.message);
+          console.log('[DEBUG] Showing unmute button');
+          unmuteNotice.style.display = 'block';
+          audioPlaying = false;
+        });
+    }
   } catch (err) {
-    console.log('[DEBUG] ❌ Audio autoplay blocked:', err.message);
-    console.log('[DEBUG] Showing unmute button');
+    console.log('[DEBUG] ❌ Audio play error:', err.message);
     unmuteNotice.style.display = 'block';
     audioPlaying = false;
   }
@@ -226,26 +244,49 @@ function setupVisualizer(stream) {
     source.connect(analyser);
     console.log('[DEBUG] Source connected to analyser');
     
-    // Setup canvas
-    resizeCanvas();
-    console.log('[DEBUG] Canvas size:', canvas.width, 'x', canvas.height);
+    // Wait for DOM to be ready, then setup canvas
+    setTimeout(() => {
+      resizeCanvas();
+      console.log('[DEBUG] Canvas size:', canvas.width, 'x', canvas.height);
+      
+      // Start animation
+      isAnimating = true;
+      drawVisualizer();
+      console.log('[DEBUG] Visualizer started successfully');
+    }, 200); // Delay for mobile rendering
     
-    // Start animation
-    isAnimating = true;
-    drawVisualizer();
-    console.log('[DEBUG] Visualizer started successfully');
     console.log('[DEBUG] ========================================');
   } catch (err) {
     console.error('[DEBUG] Error setting up visualizer:', err);
   }
 }
 
-// Resize canvas
+// Resize canvas - IMPROVED for mobile
 function resizeCanvas() {
   const container = canvas.parentElement;
-  canvas.width = container.offsetWidth || 800;
-  canvas.height = container.offsetHeight || 300;
-  console.log('[DEBUG] Canvas resized to:', canvas.width, 'x', canvas.height);
+  
+  // Get actual rendered size
+  const rect = container.getBoundingClientRect();
+  
+  // Set canvas dimensions
+  const width = rect.width || container.offsetWidth || 800;
+  const height = rect.height || container.offsetHeight || 300;
+  
+  // For high DPI displays (Retina, etc)
+  const dpr = window.devicePixelRatio || 1;
+  
+  // Set display size
+  canvas.style.width = width + 'px';
+  canvas.style.height = height + 'px';
+  
+  // Set actual canvas size (accounting for DPR)
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  
+  // Scale context to account for DPR
+  canvasCtx.scale(dpr, dpr);
+  
+  console.log('[DEBUG] Canvas resized to:', width, 'x', height, '(DPR:', dpr + ')');
 }
 
 // draw visualizer
@@ -261,19 +302,23 @@ function drawVisualizer() {
   const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-bg').trim();
   const lineColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-line').trim();
   
+  // Get display dimensions
+  const width = canvas.width / (window.devicePixelRatio || 1);
+  const height = canvas.height / (window.devicePixelRatio || 1);
+  
   canvasCtx.fillStyle = bgColor;
-  canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+  canvasCtx.fillRect(0, 0, width, height);
   
   canvasCtx.lineWidth = 2;
   canvasCtx.strokeStyle = lineColor;
   canvasCtx.beginPath();
   
-  const sliceWidth = canvas.width / bufferLength;
+  const sliceWidth = width / bufferLength;
   let x = 0;
   
   for (let i = 0; i < bufferLength; i++) {
     const v = dataArray[i] / 128.0;
-    const y = v * canvas.height / 2;
+    const y = v * height / 2;
     
     if (i === 0) {
       canvasCtx.moveTo(x, y);
@@ -284,7 +329,7 @@ function drawVisualizer() {
     x += sliceWidth;
   }
   
-  canvasCtx.lineTo(canvas.width, canvas.height / 2);
+  canvasCtx.lineTo(width, height / 2);
   canvasCtx.stroke();
 }
 
@@ -347,6 +392,52 @@ window.addEventListener('resize', () => {
     resizeCanvas();
   }
 });
+
+// Force canvas resize on orientation change (mobile)
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    if (canvas && isAnimating) {
+      resizeCanvas();
+      console.log('[DEBUG] Canvas resized after orientation change');
+    }
+  }, 300);
+});
+
+// Force initial resize after everything loads
+window.addEventListener('load', () => {
+  if (canvas) {
+    setTimeout(() => {
+      resizeCanvas();
+      console.log('[DEBUG] Canvas resized on page load');
+    }, 500);
+  }
+});
+
+// Safari: Resume AudioContext on user interaction
+document.addEventListener('click', () => {
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume().then(() => {
+      console.log('[DEBUG] AudioContext resumed for Safari');
+    });
+  }
+}, { once: true });
+
+// Safari: Extra attempt to play on any user interaction
+let safariAttempts = 0;
+document.addEventListener('touchstart', async () => {
+  if (!audioPlaying && remoteAudio.srcObject && safariAttempts < 3) {
+    safariAttempts++;
+    try {
+      remoteAudio.muted = false;
+      await remoteAudio.play();
+      console.log('[DEBUG] ✅ Safari touchstart play successful');
+      unmuteNotice.style.display = 'none';
+      audioPlaying = true;
+    } catch (err) {
+      console.log('[DEBUG] Safari touchstart attempt', safariAttempts, 'failed');
+    }
+  }
+}, { passive: true });
 
 // start
 console.log('[DEBUG] listen.js loaded, calling init()');
