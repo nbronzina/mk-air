@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>playground mk-air · ephemeral live streams</title>
+  <meta name="description" content="Broadcast live audio streams that exist only in the moment. No recording. No archive. Just presence.">
+  
+  <!-- Favicon SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f2f2f0'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="playground mk-air · ephemeral live streams">
+  <meta property="og:description" content="Broadcast live audio streams that exist only in the moment.">
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="playground mk-air · ephemeral live streams">
+  
+  <!-- Apple Touch Icon -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">playground mk-air</div>
+      <div class="tagline" id="timestamp"></div>
+    </div>
+    <div class="header-controls">
+      <button id="themeToggle" class="header-btn">
+        <span id="themeIcon">◐</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="hero">
+      <h1>ephemeral · live · audio</h1>
+      <p>broadcast streams that disappear when you stop</p>
+    </div>
+
+    <div class="main">
+      <div class="card large">
+        <h2>broadcast live audio that exists only in the moment</h2>
+        
+        <div class="feature-grid">
+          <div class="feature">
+            <div class="feature-icon">🎙️</div>
+            <h3>no recording</h3>
+            <p>your broadcast is never saved. it disappears when you stop.</p>
+          </div>
+          
+          <div class="feature">
+            <div class="feature-icon">⚡</div>
+            <h3>no archive</h3>
+            <p>listeners can only join while you're live. missed it? it's gone.</p>
+          </div>
+          
+          <div class="feature">
+            <div class="feature-icon">🌊</div>
+            <h3>just presence</h3>
+            <p>pure, unedited, imperfect moments. like radio, but personal.</p>
+          </div>
+        </div>
+
+        <div class="cta">
+          <a href="/broadcast" class="btn-primary large">start broadcast</a>
+        </div>
+
+        <div class="notice">
+          no account needed. no setup. just press and go.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>why ephemeral?</h3>
+        <p>
+          in a world where everything is recorded, archived, and permanent, 
+          mk-air reclaims the beauty of impermanence.
+        </p>
+        <p>
+          your voice, a song, a thought — shared live with whoever chooses 
+          to listen in that moment. when it's over, it's truly over.
+        </p>
+        <p>
+          no pressure to be perfect. no performance anxiety. 
+          just the freedom of knowing it won't last forever.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>how it works</h3>
+        <ol class="steps">
+          <li>click "start broadcast" and allow mic access</li>
+          <li>share your unique stream link with anyone</li>
+          <li>they listen live while you're broadcasting</li>
+          <li>when you stop, it's gone forever</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>what to broadcast</h3>
+        <div class="use-cases">
+          <span class="tag">jam sessions</span>
+          <span class="tag">ambient field recordings</span>
+          <span class="tag">late night thoughts</span>
+          <span class="tag">practice sessions</span>
+          <span class="tag">sonic experiments</span>
+          <span class="tag">morning coffee moments</span>
+          <span class="tag">poetry readings</span>
+          <span class="tag">whatever feels right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-content">
+        <span class="version">mk-air v0.1</span>
+        <span class="separator">•</span>
+        <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
+        <span class="separator">•</span>
+        <a href="https://buymeacoffee.com/nbronzina" target="_blank">support this project</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Theme Toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+
+    themeToggle.addEventListener('click', () => {
+      html.classList.toggle('dark-mode');
+    });
+
+    // Timestamp
+    function updateTimestamp() {
+      const now = new Date();
+      const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('timestamp').textContent = `${date} — ${time}`;
+    }
+    
+    updateTimestamp();
+    setInterval(updateTimestamp, 1000);
+  </script>
+</body>
+</html>
