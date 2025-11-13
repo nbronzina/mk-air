@@ -12,6 +12,7 @@ const remoteAudio = document.getElementById('remote-audio');
 const roomDisplay = document.getElementById('room-display');
 const listenerCountEl = document.getElementById('listener-count');
 const leaveBtn = document.getElementById('leave-stream');
+const unmuteNotice = document.getElementById('unmute-notice');
 const canvas = document.getElementById('visualizer');
 const canvasCtx = canvas.getContext('2d');
 
@@ -21,6 +22,7 @@ let peerConnection = null;
 let audioContext = null;
 let analyser = null;
 let isAnimating = false;
+let audioPlaying = false;
 
 // webrtc configuration
 const rtcConfig = {
@@ -51,8 +53,6 @@ function init() {
   roomId = match[1];
   console.log('[DEBUG] ========================================');
   console.log('[DEBUG] Extracted roomId:', roomId);
-  console.log('[DEBUG] roomId length:', roomId.length);
-  console.log('[DEBUG] roomId type:', typeof roomId);
   console.log('[DEBUG] ========================================');
   
   roomDisplay.textContent = roomId;
@@ -60,12 +60,11 @@ function init() {
   // join room
   console.log('[DEBUG] Emitting join-room event with roomId:', roomId);
   socket.emit('join-room', roomId);
-  console.log('[DEBUG] join-room event emitted');
 }
 
 // room not found
 socket.on('room-not-found', () => {
-  console.error('[DEBUG] Room not found - server responded with room-not-found');
+  console.error('[DEBUG] Room not found');
   showError();
 });
 
@@ -86,7 +85,6 @@ socket.on('offer', async (data) => {
     console.log('[DEBUG] REMOTE STREAM RECEIVED');
     console.log('[DEBUG] Stream:', event.streams[0]);
     console.log('[DEBUG] Audio tracks:', event.streams[0].getAudioTracks().length);
-    console.log('[DEBUG] Audio tracks details:', event.streams[0].getAudioTracks());
     console.log('[DEBUG] ========================================');
     
     const stream = event.streams[0];
@@ -94,16 +92,10 @@ socket.on('offer', async (data) => {
     // Set audio element
     remoteAudio.srcObject = stream;
     remoteAudio.volume = 1.0;
+    remoteAudio.muted = false;
     
     // Try to play immediately
-    remoteAudio.play()
-      .then(() => {
-        console.log('[DEBUG] Audio autoplay successful');
-      })
-      .catch(err => {
-        console.log('[DEBUG] Audio autoplay blocked:', err.message);
-        console.log('[DEBUG] User interaction required to play audio');
-      });
+    tryPlayAudio();
     
     // setup visualizer
     setupVisualizer(stream);
@@ -118,7 +110,6 @@ socket.on('offer', async (data) => {
   // handle ice candidates
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
-      console.log('[DEBUG] Sending ICE candidate to broadcaster');
       socket.emit('ice-candidate', {
         target: data.broadcaster,
         candidate: event.candidate
@@ -157,13 +148,42 @@ socket.on('offer', async (data) => {
   }
 });
 
+// Try to play audio
+async function tryPlayAudio() {
+  try {
+    await remoteAudio.play();
+    console.log('[DEBUG] ✅ Audio autoplay successful');
+    audioPlaying = true;
+    unmuteNotice.style.display = 'none';
+  } catch (err) {
+    console.log('[DEBUG] ❌ Audio autoplay blocked:', err.message);
+    console.log('[DEBUG] Showing unmute button');
+    unmuteNotice.style.display = 'block';
+    audioPlaying = false;
+  }
+}
+
+// Unmute button click
+unmuteNotice.addEventListener('click', async () => {
+  try {
+    remoteAudio.muted = false;
+    remoteAudio.volume = 1.0;
+    await remoteAudio.play();
+    console.log('[DEBUG] ✅ Manual audio play successful');
+    unmuteNotice.style.display = 'none';
+    audioPlaying = true;
+  } catch (err) {
+    console.error('[DEBUG] ❌ Manual play failed:', err);
+    alert('Could not play audio. Please try again.');
+  }
+});
+
 // ice candidate received
 socket.on('ice-candidate', async (data) => {
-  console.log('[DEBUG] ICE candidate received from:', data.from);
   if (peerConnection && data.candidate) {
     try {
       await peerConnection.addIceCandidate(data.candidate);
-      console.log('[DEBUG] ICE candidate added successfully');
+      console.log('[DEBUG] ICE candidate added');
     } catch (err) {
       console.error('[DEBUG] Error adding ICE candidate:', err);
     }
@@ -186,8 +206,6 @@ socket.on('stream-ended', () => {
 function setupVisualizer(stream) {
   console.log('[DEBUG] ========================================');
   console.log('[DEBUG] Setting up visualizer');
-  console.log('[DEBUG] Stream tracks:', stream.getTracks());
-  console.log('[DEBUG] Audio tracks:', stream.getAudioTracks());
   
   try {
     // Create audio context
@@ -209,8 +227,7 @@ function setupVisualizer(stream) {
     console.log('[DEBUG] Source connected to analyser');
     
     // Setup canvas
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    resizeCanvas();
     console.log('[DEBUG] Canvas size:', canvas.width, 'x', canvas.height);
     
     // Start animation
@@ -221,6 +238,14 @@ function setupVisualizer(stream) {
   } catch (err) {
     console.error('[DEBUG] Error setting up visualizer:', err);
   }
+}
+
+// Resize canvas
+function resizeCanvas() {
+  const container = canvas.parentElement;
+  canvas.width = container.offsetWidth || 800;
+  canvas.height = container.offsetHeight || 300;
+  console.log('[DEBUG] Canvas resized to:', canvas.width, 'x', canvas.height);
 }
 
 // draw visualizer
@@ -305,10 +330,7 @@ function showEnded() {
 
 // socket connection events
 socket.on('connect', () => {
-  console.log('[DEBUG] ========================================');
-  console.log('[DEBUG] Socket CONNECTED');
-  console.log('[DEBUG] Socket ID:', socket.id);
-  console.log('[DEBUG] ========================================');
+  console.log('[DEBUG] Socket CONNECTED, ID:', socket.id);
 });
 
 socket.on('disconnect', () => {
@@ -322,8 +344,7 @@ socket.on('connect_error', (error) => {
 // Handle window resize
 window.addEventListener('resize', () => {
   if (canvas && isAnimating) {
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    resizeCanvas();
   }
 });
 
