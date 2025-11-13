@@ -27,51 +27,60 @@
   <div class="container">
     <div class="main">
       
-      <!-- Setup view -->
-      <div id="setup-view" class="view">
+      <!-- STEP 1: Microphone permission -->
+      <div id="mic-view" class="view">
         <div class="card centered">
-          <h2>ready to broadcast?</h2>
+          <h2>first, your microphone</h2>
+          <p>this allows you to talk or narrate while broadcasting.</p>
           
-          <!-- Audio Source Selection -->
+          <div class="cta">
+            <button id="request-mic" class="btn-primary large">
+              allow microphone access
+            </button>
+          </div>
+
+          <div class="notice">
+            you'll be able to add music or system audio in the next step
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Audio source selection -->
+      <div id="source-view" class="view hidden">
+        <div class="card centered">
+          <h2>add audio source</h2>
+          <p>stream music, mk-1, or any audio from your system.</p>
+          
           <div class="audio-source-section">
-            <label class="stream-link-label">choose your audio source</label>
+            <label class="stream-link-label">select microphone device</label>
+            <select id="audio-device-select" class="audio-select">
+              <option value="">loading devices...</option>
+            </select>
             
-            <div class="source-options">
-              <button class="source-btn active" data-source="microphone">
-                <span class="source-icon">🎙️</span>
-                <span class="source-name">microphone</span>
-              </button>
-              
-              <button class="source-btn" data-source="system">
-                <span class="source-icon">🖥️</span>
-                <span class="source-name">system audio</span>
-              </button>
+            <div style="margin: 2rem 0; text-align: center; color: var(--text-tertiary); font-size: 0.75rem;">
+              + optional system audio
             </div>
-
-            <!-- Device selector (for microphone mode) -->
-            <div id="device-selector" class="device-selector">
-              <label class="stream-link-label">select device</label>
-              <select id="audio-device-select" class="audio-select">
-                <option value="">loading devices...</option>
-              </select>
-            </div>
-
-            <p class="source-hint" id="source-hint">capture audio from your microphone or instrument</p>
+            
+            <label class="stream-link-label">add system audio? (optional)</label>
+            <p class="source-hint">you can stream music from spotify, mk-1, ableton, or any browser tab alongside your voice</p>
           </div>
           
           <div class="cta">
-            <button id="start-broadcast" class="btn-primary large" disabled>
+            <button id="add-system-audio" class="btn-secondary" style="margin-bottom: 0.5rem;">
+              + add system audio
+            </button>
+            <button id="start-broadcast" class="btn-primary large">
               start broadcast
             </button>
           </div>
 
           <div class="notice">
-            no recording. no archive. just presence.
+            <span id="sources-status">mic ready · no system audio</span>
           </div>
         </div>
       </div>
 
-      <!-- Broadcast view -->
+      <!-- STEP 3: Broadcasting -->
       <div id="broadcast-view" class="view hidden">
         
         <!-- Stream link -->
@@ -103,10 +112,10 @@
           <div class="visualizer-label">your audio</div>
         </div>
 
-        <!-- Notice -->
+        <!-- Audio sources status -->
         <div class="notice large">
-          this broadcast will not be recorded.<br>
-          when you stop, it will disappear forever.
+          <span id="broadcast-sources">🎙️ microphone active</span><br>
+          this broadcast will not be recorded.
         </div>
 
         <!-- Controls -->
