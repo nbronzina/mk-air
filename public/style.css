@@ -782,6 +782,16 @@ body::after {
     color: var(--text-primary);
 }
 
+#unmute-notice {
+    color: #fff !important;
+}
+
+/* === UNMUTE NOTICE === */
+#unmute-notice h3,
+#unmute-notice p {
+    color: #fff !important;
+}
+
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
     .header {
