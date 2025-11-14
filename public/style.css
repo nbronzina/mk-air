@@ -892,6 +892,8 @@ body::after {
     margin-top: 0.5rem;
     min-width: 250px;
     font-size: 0.9rem !important;
+    background: var(--active-bg) !important;
+    color: var(--active-text) !important;
 }
 
 /* === AUDIO STATUS INDICATOR === */
