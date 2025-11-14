@@ -701,6 +701,10 @@ body::after {
 }
 
 /* === SUPPORT CARD === */
+.support-card {
+    margin-top: 2rem;  /* ← AGREGAR ESTA LÍNEA */
+}
+
 .support-card pre {
     background: var(--bg-tertiary);
     padding: 1.5rem;
