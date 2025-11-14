@@ -50,40 +50,66 @@
       <!-- Listen view -->
       <div id="listen-view" class="view hidden">
         
-        <!-- Room info -->
-        <div class="card">
-          <div style="text-align: center;">
-            <h2>● live</h2>
-            <p style="margin-top: 0.5rem; color: var(--text-tertiary); font-size: 0.75rem;">
-              listening to <span id="room-display" style="font-weight: 600; color: var(--text-primary);"></span>
-            </p>
+        <!-- Stream Header - Now Playing -->
+        <div class="card stream-header">
+          <div class="live-indicator">
+            <span class="live-dot"></span>
+            <span class="live-text">live broadcast</span>
           </div>
+          <h2 class="stream-title">
+            <span id="room-display"></span>
+          </h2>
+          <p class="stream-subtitle">ephemeral audio stream · not recorded</p>
         </div>
 
         <!-- Unmute button (shown if autoplay blocked) -->
-        <div id="unmute-notice" class="card" style="display: none; text-align: center; cursor: pointer; background: var(--active-bg); color: var(--active-text); padding: 1rem;">
-          <h3 style="margin: 0;">🔇 click here to enable audio</h3>
-          <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; opacity: 0.8;">browser autoplay blocked · tap to unmute</p>
+        <div id="unmute-notice" class="card unmute-card" style="display: none;">
+          <div class="unmute-content">
+            <div class="unmute-icon">🔊</div>
+            <h3 class="unmute-title">activate audio to listen</h3>
+            <p class="unmute-description">your browser blocked autoplay · tap to start streaming</p>
+            <button class="btn-primary large unmute-button">
+              start listening
+            </button>
+          </div>
+        </div>
+
+        <!-- Audio Status Indicator (shown when audio is active) -->
+        <div id="audio-status" class="card audio-status" style="display: none;">
+          <div class="audio-status-content">
+            <div class="audio-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+              </svg>
+            </div>
+            <span class="audio-status-text">audio active · listening now</span>
+          </div>
         </div>
 
         <!-- Stats -->
         <div class="stats">
           <div class="stat">
-            <span class="stat-label">others listening</span>
+            <span class="stat-label">listeners</span>
             <span class="stat-value" id="listener-count">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">streaming</span>
+            <span class="stat-value live" id="stream-duration">00:00</span>
           </div>
         </div>
 
         <!-- Visualizer -->
         <div class="visualizer">
           <canvas id="visualizer"></canvas>
-          <div class="visualizer-label">live audio</div>
+          <div class="visualizer-label">live audio waveform</div>
         </div>
 
         <!-- Notice -->
         <div class="notice large">
-          this stream is not being recorded.<br>
-          when it ends, it will be gone forever.
+          this is a live performance.<br>
+          nothing is being recorded — it exists only in this moment.
         </div>
 
         <!-- Controls -->
