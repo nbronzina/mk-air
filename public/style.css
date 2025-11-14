@@ -782,13 +782,6 @@ body::after {
     color: var(--text-primary);
 }
 
-/* === UNMUTE NOTICE === */
-#unmute-notice,
-#unmute-notice h3,
-#unmute-notice p {
-    color: var(--active-text) !important;
-}
-
 /* === STREAM HEADER === */
 .stream-header {
     text-align: center;
@@ -839,8 +832,16 @@ body::after {
 .stream-subtitle {
     font-size: 0.8rem !important;
     color: var(--text-tertiary) !important;
+    margin: 0 0 0.3rem 0 !important;
+    font-weight: 400;
+}
+
+.stream-subtitle-extra {
+    font-size: 0.75rem !important;
+    color: var(--text-tertiary) !important;
     margin: 0 !important;
     font-weight: 400;
+    opacity: 0.8;
 }
 
 /* === UNMUTE CARD IMPROVED === */
