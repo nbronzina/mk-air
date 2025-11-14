@@ -782,14 +782,11 @@ body::after {
     color: var(--text-primary);
 }
 
-#unmute-notice {
-    color: #fff !important;
-}
-
 /* === UNMUTE NOTICE === */
+#unmute-notice,
 #unmute-notice h3,
 #unmute-notice p {
-    color: #fff !important;
+    color: var(--active-text) !important;
 }
 
 /* === RESPONSIVE === */
