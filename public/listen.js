@@ -13,6 +13,8 @@ const roomDisplay = document.getElementById('room-display');
 const listenerCountEl = document.getElementById('listener-count');
 const leaveBtn = document.getElementById('leave-stream');
 const unmuteNotice = document.getElementById('unmute-notice');
+const audioStatus = document.getElementById('audio-status');
+const streamDuration = document.getElementById('stream-duration');
 const canvas = document.getElementById('visualizer');
 const canvasCtx = canvas.getContext('2d');
 
@@ -23,6 +25,8 @@ let audioContext = null;
 let analyser = null;
 let isAnimating = false;
 let audioPlaying = false;
+let streamStartTime = null;
+let durationInterval = null;
 
 // webrtc configuration
 const rtcConfig = {
@@ -74,6 +78,10 @@ socket.on('offer', async (data) => {
   console.log('[DEBUG] OFFER RECEIVED from broadcaster');
   console.log('[DEBUG] Broadcaster ID:', data.broadcaster);
   console.log('[DEBUG] ========================================');
+  
+  // Start stream duration counter
+  streamStartTime = Date.now();
+  startDurationCounter();
   
   // create peer connection
   peerConnection = new RTCPeerConnection(rtcConfig);
@@ -154,6 +162,19 @@ socket.on('offer', async (data) => {
   }
 });
 
+// Start duration counter
+function startDurationCounter() {
+  durationInterval = setInterval(() => {
+    if (!streamStartTime) return;
+    
+    const elapsed = Date.now() - streamStartTime;
+    const minutes = Math.floor(elapsed / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
+    
+    streamDuration.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, 1000);
+}
+
 // Try to play audio (Safari-compatible)
 async function tryPlayAudio() {
   try {
@@ -166,29 +187,33 @@ async function tryPlayAudio() {
           console.log('[DEBUG] ✅ Audio autoplay successful');
           audioPlaying = true;
           unmuteNotice.style.display = 'none';
+          audioStatus.style.display = 'block';
         })
         .catch(err => {
           console.log('[DEBUG] ❌ Audio autoplay blocked:', err.message);
           console.log('[DEBUG] Showing unmute button');
           unmuteNotice.style.display = 'block';
+          audioStatus.style.display = 'none';
           audioPlaying = false;
         });
     }
   } catch (err) {
     console.log('[DEBUG] ❌ Audio play error:', err.message);
     unmuteNotice.style.display = 'block';
+    audioStatus.style.display = 'none';
     audioPlaying = false;
   }
 }
 
-// Unmute button click
-unmuteNotice.addEventListener('click', async () => {
+// Unmute button click - handle both card and button clicks
+unmuteNotice.addEventListener('click', async (e) => {
   try {
     remoteAudio.muted = false;
     remoteAudio.volume = 1.0;
     await remoteAudio.play();
     console.log('[DEBUG] ✅ Manual audio play successful');
     unmuteNotice.style.display = 'none';
+    audioStatus.style.display = 'block';
     audioPlaying = true;
   } catch (err) {
     console.error('[DEBUG] ❌ Manual play failed:', err);
@@ -352,6 +377,10 @@ function cleanup() {
     audioContext.close();
   }
   
+  if (durationInterval) {
+    clearInterval(durationInterval);
+  }
+  
   isAnimating = false;
   socket.disconnect();
   
@@ -432,6 +461,7 @@ document.addEventListener('touchstart', async () => {
       await remoteAudio.play();
       console.log('[DEBUG] ✅ Safari touchstart play successful');
       unmuteNotice.style.display = 'none';
+      audioStatus.style.display = 'block';
       audioPlaying = true;
     } catch (err) {
       console.log('[DEBUG] Safari touchstart attempt', safariAttempts, 'failed');
