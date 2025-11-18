@@ -38,87 +38,59 @@ const rtcConfig = {
 
 // initialize
 function init() {
-  console.log('[DEBUG] ========== LISTENER INITIALIZING ==========');
-  console.log('[DEBUG] Current URL:', window.location.href);
-  console.log('[DEBUG] Pathname:', window.location.pathname);
-  
-  // get room id from url
   const path = window.location.pathname;
   const match = path.match(/\/listen\/(.+)/);
-  
-  console.log('[DEBUG] Path match result:', match);
-  
+
   if (!match) {
-    console.error('[DEBUG] No room ID found in URL');
     showError();
     return;
   }
-  
+
   roomId = match[1];
-  console.log('[DEBUG] ========================================');
-  console.log('[DEBUG] Extracted roomId:', roomId);
-  console.log('[DEBUG] ========================================');
-  
   roomDisplay.textContent = roomId;
-  
+
   // join room
-  console.log('[DEBUG] Emitting join-room event with roomId:', roomId);
   socket.emit('join-room', roomId);
 }
 
 // room not found
 socket.on('room-not-found', () => {
-  console.error('[DEBUG] Room not found');
   showError();
 });
 
 // offer received from broadcaster
 socket.on('offer', async (data) => {
-  console.log('[DEBUG] ========================================');
-  console.log('[DEBUG] OFFER RECEIVED from broadcaster');
-  console.log('[DEBUG] Broadcaster ID:', data.broadcaster);
-  console.log('[DEBUG] ========================================');
-  
   // Start stream duration counter
   streamStartTime = Date.now();
   startDurationCounter();
-  
+
   // create peer connection
   peerConnection = new RTCPeerConnection(rtcConfig);
-  console.log('[DEBUG] RTCPeerConnection created');
-  
+
   // handle incoming stream
   peerConnection.ontrack = (event) => {
-    console.log('[DEBUG] ========================================');
-    console.log('[DEBUG] REMOTE STREAM RECEIVED');
-    console.log('[DEBUG] Stream:', event.streams[0]);
-    console.log('[DEBUG] Audio tracks:', event.streams[0].getAudioTracks().length);
-    console.log('[DEBUG] ========================================');
-    
     const stream = event.streams[0];
-    
+
     // Set audio element
     remoteAudio.srcObject = stream;
     remoteAudio.volume = 1.0;
     remoteAudio.muted = false;
-    
+
     // Safari needs these attributes
     remoteAudio.setAttribute('webkit-playsinline', '');
     remoteAudio.setAttribute('playsinline', '');
-    
+
     // Try to play immediately
     tryPlayAudio();
-    
+
     // Setup visualizer with delay for mobile
     setTimeout(() => {
       setupVisualizer(stream);
     }, 200);
-    
+
     // show listen view
     connectingView.classList.add('hidden');
     listenView.classList.remove('hidden');
-    
-    console.log('[DEBUG] Switched to listen view');
   };
   
   // handle ice candidates
@@ -131,34 +103,19 @@ socket.on('offer', async (data) => {
     }
   };
   
-  // connection state changes
-  peerConnection.onconnectionstatechange = () => {
-    console.log('[DEBUG] Connection state:', peerConnection.connectionState);
-  };
-  
-  peerConnection.oniceconnectionstatechange = () => {
-    console.log('[DEBUG] ICE connection state:', peerConnection.iceConnectionState);
-  };
-  
   // set remote description and create answer
   try {
     await peerConnection.setRemoteDescription(data.offer);
-    console.log('[DEBUG] Remote description set');
-    
     const answer = await peerConnection.createAnswer();
-    console.log('[DEBUG] Answer created');
-    
     await peerConnection.setLocalDescription(answer);
-    console.log('[DEBUG] Local description set');
-    
+
     // send answer
     socket.emit('answer', {
       target: data.broadcaster,
       answer: answer
     });
-    console.log('[DEBUG] Answer sent to broadcaster');
   } catch (err) {
-    console.error('[DEBUG] Error in WebRTC negotiation:', err);
+    console.error('[ERROR] WebRTC negotiation failed:', err);
   }
 });
 
@@ -178,45 +135,39 @@ function startDurationCounter() {
 // Try to play audio (Safari-compatible)
 async function tryPlayAudio() {
   try {
-    // Safari needs explicit promise handling
     const playPromise = remoteAudio.play();
-    
+
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          console.log('[DEBUG] ✅ Audio autoplay successful');
           audioPlaying = true;
           unmuteNotice.style.display = 'none';
           audioStatus.style.display = 'block';
         })
-        .catch(err => {
-          console.log('[DEBUG] ❌ Audio autoplay blocked:', err.message);
-          console.log('[DEBUG] Showing unmute button');
+        .catch(() => {
           unmuteNotice.style.display = 'block';
           audioStatus.style.display = 'none';
           audioPlaying = false;
         });
     }
   } catch (err) {
-    console.log('[DEBUG] ❌ Audio play error:', err.message);
     unmuteNotice.style.display = 'block';
     audioStatus.style.display = 'none';
     audioPlaying = false;
   }
 }
 
-// Unmute button click - handle both card and button clicks
-unmuteNotice.addEventListener('click', async (e) => {
+// Unmute button click
+unmuteNotice.addEventListener('click', async () => {
   try {
     remoteAudio.muted = false;
     remoteAudio.volume = 1.0;
     await remoteAudio.play();
-    console.log('[DEBUG] ✅ Manual audio play successful');
     unmuteNotice.style.display = 'none';
     audioStatus.style.display = 'block';
     audioPlaying = true;
   } catch (err) {
-    console.error('[DEBUG] ❌ Manual play failed:', err);
+    console.error('[ERROR] Manual play failed:', err);
     alert('Could not play audio. Please try again.');
   }
 });
@@ -226,92 +177,60 @@ socket.on('ice-candidate', async (data) => {
   if (peerConnection && data.candidate) {
     try {
       await peerConnection.addIceCandidate(data.candidate);
-      console.log('[DEBUG] ICE candidate added');
     } catch (err) {
-      console.error('[DEBUG] Error adding ICE candidate:', err);
+      console.error('[ERROR] ICE candidate failed:', err);
     }
   }
 });
 
 // update listener count
 socket.on('listener-count', (count) => {
-  console.log('[DEBUG] Listener count updated:', count);
   listenerCountEl.textContent = count;
 });
 
 // stream ended
 socket.on('stream-ended', () => {
-  console.log('[DEBUG] Stream ended by broadcaster');
   showEnded();
 });
 
 // setup visualizer
 function setupVisualizer(stream) {
-  console.log('[DEBUG] ========================================');
-  console.log('[DEBUG] Setting up visualizer');
-  
   try {
-    // Create audio context
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    console.log('[DEBUG] AudioContext created');
-    
-    // Create source from stream
     const source = audioContext.createMediaStreamSource(stream);
-    console.log('[DEBUG] MediaStreamSource created');
-    
-    // Create analyser
+
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.8;
-    console.log('[DEBUG] Analyser created');
-    
-    // Connect source to analyser
+
     source.connect(analyser);
-    console.log('[DEBUG] Source connected to analyser');
-    
+
     // Wait for DOM to be ready, then setup canvas
     setTimeout(() => {
       resizeCanvas();
-      console.log('[DEBUG] Canvas size:', canvas.width, 'x', canvas.height);
-      
-      // Start animation
       isAnimating = true;
       drawVisualizer();
-      console.log('[DEBUG] Visualizer started successfully');
-    }, 200); // Delay for mobile rendering
-    
-    console.log('[DEBUG] ========================================');
+    }, 200);
   } catch (err) {
-    console.error('[DEBUG] Error setting up visualizer:', err);
+    console.error('[ERROR] Visualizer setup failed:', err);
   }
 }
 
-// Resize canvas - IMPROVED for mobile
+// Resize canvas for high DPI displays
 function resizeCanvas() {
   const container = canvas.parentElement;
-  
-  // Get actual rendered size
   const rect = container.getBoundingClientRect();
-  
-  // Set canvas dimensions
+
   const width = rect.width || container.offsetWidth || 800;
   const height = rect.height || container.offsetHeight || 300;
-  
-  // For high DPI displays (Retina, etc)
   const dpr = window.devicePixelRatio || 1;
-  
-  // Set display size
+
   canvas.style.width = width + 'px';
   canvas.style.height = height + 'px';
-  
-  // Set actual canvas size (accounting for DPR)
   canvas.width = width * dpr;
   canvas.height = height * dpr;
-  
-  // Scale context to account for DPR
+
   canvasCtx.scale(dpr, dpr);
-  
-  console.log('[DEBUG] Canvas resized to:', width, 'x', height, '(DPR:', dpr + ')');
 }
 
 // draw visualizer
@@ -360,98 +279,60 @@ function drawVisualizer() {
 
 // leave stream
 leaveBtn.addEventListener('click', () => {
-  console.log('[DEBUG] Leave stream clicked');
   cleanup();
   window.location.href = '/';
 });
 
 // cleanup
 function cleanup() {
-  console.log('[DEBUG] Cleaning up listener...');
-  
-  if (peerConnection) {
-    peerConnection.close();
-  }
-  
-  if (audioContext) {
-    audioContext.close();
-  }
-  
-  if (durationInterval) {
-    clearInterval(durationInterval);
-  }
-  
+  if (peerConnection) peerConnection.close();
+  if (audioContext) audioContext.close();
+  if (durationInterval) clearInterval(durationInterval);
+
   isAnimating = false;
   socket.disconnect();
-  
-  console.log('[DEBUG] Cleanup complete');
 }
 
 // show error view
 function showError() {
-  console.log('[DEBUG] Showing error view');
   connectingView.classList.add('hidden');
   errorView.classList.remove('hidden');
 }
 
 // show ended view
 function showEnded() {
-  console.log('[DEBUG] Showing ended view');
   cleanup();
   listenView.classList.add('hidden');
   endedView.classList.remove('hidden');
 }
 
-// socket connection events
-socket.on('connect', () => {
-  console.log('[DEBUG] Socket CONNECTED, ID:', socket.id);
-});
-
-socket.on('disconnect', () => {
-  console.log('[DEBUG] Socket disconnected');
-});
-
-socket.on('connect_error', (error) => {
-  console.error('[DEBUG] Socket connection error:', error);
-});
-
 // Handle window resize
 window.addEventListener('resize', () => {
-  if (canvas && isAnimating) {
-    resizeCanvas();
-  }
+  if (canvas && isAnimating) resizeCanvas();
 });
 
-// Force canvas resize on orientation change (mobile)
+// Orientation change (mobile)
 window.addEventListener('orientationchange', () => {
   setTimeout(() => {
-    if (canvas && isAnimating) {
-      resizeCanvas();
-      console.log('[DEBUG] Canvas resized after orientation change');
-    }
+    if (canvas && isAnimating) resizeCanvas();
   }, 300);
 });
 
-// Force initial resize after everything loads
+// Initial resize after load
 window.addEventListener('load', () => {
   if (canvas) {
-    setTimeout(() => {
-      resizeCanvas();
-      console.log('[DEBUG] Canvas resized on page load');
-    }, 500);
+    setTimeout(() => resizeCanvas(), 500);
   }
 });
 
 // Safari: Resume AudioContext on user interaction
 document.addEventListener('click', () => {
   if (audioContext && audioContext.state === 'suspended') {
-    audioContext.resume().then(() => {
-      console.log('[DEBUG] AudioContext resumed for Safari');
-    });
+    audioContext.resume();
   }
 }, { once: true });
 
-// Safari: Extra attempt to play on any user interaction
+// Safari: Extra attempt to play on touch
 let safariAttempts = 0;
 document.addEventListener('touchstart', async () => {
   if (!audioPlaying && remoteAudio.srcObject && safariAttempts < 3) {
@@ -459,16 +340,14 @@ document.addEventListener('touchstart', async () => {
     try {
       remoteAudio.muted = false;
       await remoteAudio.play();
-      console.log('[DEBUG] ✅ Safari touchstart play successful');
       unmuteNotice.style.display = 'none';
       audioStatus.style.display = 'block';
       audioPlaying = true;
     } catch (err) {
-      console.log('[DEBUG] Safari touchstart attempt', safariAttempts, 'failed');
+      // Silent fail
     }
   }
 }, { passive: true });
 
 // start
-console.log('[DEBUG] listen.js loaded, calling init()');
 init();
