@@ -157,27 +157,7 @@ if you find value, consider supporting:
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/common.js"></script>
   <script src="/listen.js"></script>
-  <script>
-    // Theme Toggle
-    const themeToggle = document.getElementById('themeToggle');
-    const html = document.documentElement;
-
-    themeToggle.addEventListener('click', () => {
-      html.classList.toggle('dark-mode');
-      console.log('[THEME] Toggled to:', html.classList.contains('dark-mode') ? 'dark' : 'light');
-    });
-
-    // Timestamp
-    function updateTimestamp() {
-      const now = new Date();
-      const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-      const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      document.getElementById('timestamp').textContent = `${date} — ${time}`;
-    }
-    
-    updateTimestamp();
-    setInterval(updateTimestamp, 1000);
-  </script>
 </body>
 </html>

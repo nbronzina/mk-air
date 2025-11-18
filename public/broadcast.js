@@ -53,9 +53,7 @@ requestMicBtn.addEventListener('click', async () => {
         autoGainControl: true
       }
     });
-    
-    console.log('[DEBUG] Microphone access granted');
-    
+
     // enumerate devices
     await enumerateDevices();
     
@@ -91,10 +89,8 @@ async function enumerateDevices() {
         audioDeviceSelect.appendChild(option);
       });
     }
-    
-    console.log('[DEBUG] Found', audioDevices.length, 'audio devices');
   } catch (err) {
-    console.error('error enumerating devices:', err);
+    console.error('[ERROR] Device enumeration failed:', err);
     audioDeviceSelect.innerHTML = '<option>default microphone</option>';
   }
 }
@@ -103,14 +99,12 @@ async function enumerateDevices() {
 audioDeviceSelect.addEventListener('change', async () => {
   try {
     const deviceId = audioDeviceSelect.value;
-    
-    console.log('[DEBUG] Switching to device:', deviceId);
-    
+
     // stop current mic stream
     if (micStream) {
       micStream.getTracks().forEach(track => track.stop());
     }
-    
+
     // get new stream with selected device
     micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -120,11 +114,8 @@ audioDeviceSelect.addEventListener('change', async () => {
         autoGainControl: true
       }
     });
-    
-    console.log('[DEBUG] Successfully switched microphone');
-    
   } catch (err) {
-    console.error('error changing microphone:', err);
+    console.error('[ERROR] Microphone switch failed:', err);
     alert('failed to switch microphone device');
   }
 });
@@ -159,12 +150,10 @@ addSystemAudioBtn.addEventListener('click', async () => {
     
     systemStream = stream;
     hasSystemAudio = true;
-    
+
     addSystemAudioBtn.textContent = '✓ system audio added';
     addSystemAudioBtn.classList.add('active');
-    
-    console.log('[DEBUG] System audio added successfully');
-    
+
     updateSourcesStatus();
     
   } catch (err) {
@@ -195,24 +184,18 @@ startBtn.addEventListener('click', async () => {
   try {
     startBtn.disabled = true;
     startBtn.textContent = 'starting broadcast...';
-    
-    console.log('[DEBUG] ========== STARTING BROADCAST ==========');
-    
+
     // create audio context for mixing
     audioContext = new AudioContext();
-    
-    // create destination for mixed audio
     const destination = audioContext.createMediaStreamDestination();
-    
+
     // add microphone
     const micSource = audioContext.createMediaStreamSource(micStream);
     const micGain = audioContext.createGain();
     micGain.gain.value = 1.0;
     micSource.connect(micGain);
     micGain.connect(destination);
-    
-    console.log('[DEBUG] Microphone connected to mixer');
-    
+
     // add system audio if available
     if (hasSystemAudio && systemStream) {
       const systemSource = audioContext.createMediaStreamSource(systemStream);
@@ -220,37 +203,27 @@ startBtn.addEventListener('click', async () => {
       systemGain.gain.value = 0.8; // slightly lower to prioritize voice
       systemSource.connect(systemGain);
       systemGain.connect(destination);
-      console.log('[DEBUG] System audio connected to mixer');
     }
-    
+
     // setup analyzer for visualization
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
-    
+
     // connect destination to analyser
     const analyserSource = audioContext.createMediaStreamSource(destination.stream);
     analyserSource.connect(analyser);
-    
+
     // mixed stream to broadcast
     mixedStream = destination.stream;
-    
-    console.log('[DEBUG] Audio mixing complete');
-    
+
     // generate room id
     roomId = generateRoomId();
-    
-    console.log('[DEBUG] ========================================');
-    console.log('[DEBUG] Generated roomId:', roomId);
-    console.log('[DEBUG] roomId length:', roomId.length);
-    console.log('[DEBUG] roomId type:', typeof roomId);
-    console.log('[DEBUG] ========================================');
-    
+
     // create room on server
     socket.emit('create-room', roomId);
-    console.log('[DEBUG] Emitted create-room event with roomId:', roomId);
     
   } catch (err) {
-    console.error('error starting broadcast:', err);
+    console.error('[ERROR] Broadcast start failed:', err);
     alert('failed to start broadcast: ' + err.message);
     startBtn.disabled = false;
     startBtn.textContent = 'start broadcast';
@@ -259,53 +232,36 @@ startBtn.addEventListener('click', async () => {
 
 // room created successfully
 socket.on('room-created', (id) => {
-  console.log('[DEBUG] ========================================');
-  console.log('[DEBUG] Received room-created event');
-  console.log('[DEBUG] Server returned ID:', id);
-  console.log('[DEBUG] Client roomId variable:', roomId);
-  console.log('[DEBUG] Are they exactly the same?', id === roomId);
-  console.log('[DEBUG] Server ID length:', id.length);
-  console.log('[DEBUG] Client ID length:', roomId.length);
-  console.log('[DEBUG] ========================================');
-  
   // generate and display link
   const link = `${window.location.origin}/listen/${id}`;
   streamLinkInput.value = link;
-  
-  console.log('[DEBUG] Generated link:', link);
-  console.log('[DEBUG] Link in input field:', streamLinkInput.value);
-  console.log('[DEBUG] ========================================');
-  
+
   // update broadcast sources display
   if (hasSystemAudio) {
     broadcastSources.textContent = '🎙️ microphone + 🖥️ system audio active';
   } else {
     broadcastSources.textContent = '🎙️ microphone active';
   }
-  
+
   // switch to broadcast view
   sourceView.classList.add('hidden');
   broadcastView.classList.remove('hidden');
-  
+
   // start visualizer
   startVisualizer();
 });
 
 // listener joined
 socket.on('listener-joined', async (listenerId) => {
-  console.log('[DEBUG] Listener joined:', listenerId);
-  
   // create peer connection
   const peer = new RTCPeerConnection(rtcConfig);
   peers.set(listenerId, peer);
-  
+
   // add mixed stream tracks
   mixedStream.getTracks().forEach(track => {
     peer.addTrack(track, mixedStream);
   });
-  
-  console.log('[DEBUG] Added stream tracks to peer for listener:', listenerId);
-  
+
   // handle ice candidates
   peer.onicecandidate = (event) => {
     if (event.candidate) {
@@ -313,45 +269,37 @@ socket.on('listener-joined', async (listenerId) => {
         target: listenerId,
         candidate: event.candidate
       });
-      console.log('[DEBUG] Sent ICE candidate to listener:', listenerId);
     }
   };
-  
+
   // create and send offer
   const offer = await peer.createOffer();
   await peer.setLocalDescription(offer);
-  
+
   socket.emit('offer', {
     target: listenerId,
     offer: offer
   });
-  
-  console.log('[DEBUG] Sent offer to listener:', listenerId);
 });
 
 // answer received from listener
 socket.on('answer', async (data) => {
-  console.log('[DEBUG] Received answer from listener:', data.listener);
   const peer = peers.get(data.listener);
   if (peer) {
     await peer.setRemoteDescription(data.answer);
-    console.log('[DEBUG] Set remote description for listener:', data.listener);
   }
 });
 
 // ice candidate received
 socket.on('ice-candidate', async (data) => {
-  console.log('[DEBUG] Received ICE candidate from:', data.from);
   const peer = peers.get(data.from);
   if (peer && data.candidate) {
     await peer.addIceCandidate(data.candidate);
-    console.log('[DEBUG] Added ICE candidate from:', data.from);
   }
 });
 
 // update listener count
 socket.on('listener-count', (count) => {
-  console.log('[DEBUG] Listener count updated:', count);
   listenerCountEl.textContent = count;
 });
 
@@ -359,12 +307,7 @@ socket.on('listener-count', (count) => {
 copyLinkBtn.addEventListener('click', () => {
   streamLinkInput.select();
   document.execCommand('copy');
-  
-  console.log('[DEBUG] ========================================');
-  console.log('[DEBUG] COPY LINK CLICKED');
-  console.log('[DEBUG] Link copied to clipboard:', streamLinkInput.value);
-  console.log('[DEBUG] ========================================');
-  
+
   const originalText = copyLinkBtn.textContent;
   copyLinkBtn.textContent = 'copied!';
   setTimeout(() => {
@@ -375,7 +318,6 @@ copyLinkBtn.addEventListener('click', () => {
 // stop broadcast
 stopBtn.addEventListener('click', () => {
   if (confirm('end this broadcast? listeners will be disconnected.')) {
-    console.log('[DEBUG] Broadcast stopped by user');
     cleanup();
     window.location.href = '/';
   }
@@ -383,34 +325,22 @@ stopBtn.addEventListener('click', () => {
 
 // cleanup
 function cleanup() {
-  console.log('[DEBUG] Cleaning up broadcast...');
-  
   // stop all peer connections
   peers.forEach(peer => peer.close());
   peers.clear();
-  
+
   // stop streams
-  if (micStream) {
-    micStream.getTracks().forEach(track => track.stop());
-  }
-  if (systemStream) {
-    systemStream.getTracks().forEach(track => track.stop());
-  }
-  if (mixedStream) {
-    mixedStream.getTracks().forEach(track => track.stop());
-  }
-  
+  if (micStream) micStream.getTracks().forEach(track => track.stop());
+  if (systemStream) systemStream.getTracks().forEach(track => track.stop());
+  if (mixedStream) mixedStream.getTracks().forEach(track => track.stop());
+
   // close audio context
-  if (audioContext) {
-    audioContext.close();
-  }
-  
+  if (audioContext) audioContext.close();
+
   // disconnect socket
   socket.disconnect();
-  
+
   isAnimating = false;
-  
-  console.log('[DEBUG] Cleanup complete');
 }
 
 // start visualizer
@@ -419,7 +349,6 @@ function startVisualizer() {
   canvas.height = canvas.offsetHeight;
   isAnimating = true;
   drawVisualizer();
-  console.log('[DEBUG] Visualizer started');
 }
 
 function drawVisualizer() {
@@ -463,9 +392,7 @@ function drawVisualizer() {
 
 // utility: generate room id
 function generateRoomId() {
-  const id = Math.random().toString(36).substring(2, 8);
-  console.log('[DEBUG] generateRoomId() called, generated:', id);
-  return id;
+  return Math.random().toString(36).substring(2, 8);
 }
 
 // handle page unload
@@ -474,17 +401,4 @@ window.addEventListener('beforeunload', (e) => {
     e.preventDefault();
     e.returnValue = '';
   }
-});
-
-// socket connection status
-socket.on('connect', () => {
-  console.log('[DEBUG] Socket connected:', socket.id);
-});
-
-socket.on('disconnect', () => {
-  console.log('[DEBUG] Socket disconnected');
-});
-
-socket.on('connect_error', (error) => {
-  console.error('[DEBUG] Socket connection error:', error);
 });
