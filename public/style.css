@@ -64,7 +64,7 @@
 
 /* === BODY BASE === */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Arial', sans-serif;
+    font-family: 'JetBrains Mono', monospace;
     background: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.6;
@@ -126,6 +126,17 @@ body::after {
     text-transform: lowercase;
     position: relative;
     z-index: 2;
+}
+
+.wordmark {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+}
+
+.separator {
+    opacity: 0.85;
+    margin: 0;
+    padding: 0;
 }
 
 .tagline {

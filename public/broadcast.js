@@ -151,7 +151,7 @@ addSystemAudioBtn.addEventListener('click', async () => {
     systemStream = stream;
     hasSystemAudio = true;
 
-    addSystemAudioBtn.textContent = '✓ system audio added';
+    addSystemAudioBtn.textContent = 'system audio added';
     addSystemAudioBtn.classList.add('active');
 
     updateSourcesStatus();
@@ -173,9 +173,9 @@ addSystemAudioBtn.addEventListener('click', async () => {
 // update sources status
 function updateSourcesStatus() {
   if (hasSystemAudio) {
-    sourcesStatus.textContent = '🎙️ mic ready · 🖥️ system audio ready';
+    sourcesStatus.textContent = 'mic ready · system audio ready';
   } else {
-    sourcesStatus.textContent = '🎙️ mic ready · no system audio';
+    sourcesStatus.textContent = 'mic ready · no system audio';
   }
 }
 
@@ -238,9 +238,9 @@ socket.on('room-created', (id) => {
 
   // update broadcast sources display
   if (hasSystemAudio) {
-    broadcastSources.textContent = '🎙️ microphone + 🖥️ system audio active';
+    broadcastSources.textContent = 'microphone + system audio active';
   } else {
-    broadcastSources.textContent = '🎙️ microphone active';
+    broadcastSources.textContent = 'microphone active';
   }
 
   // switch to broadcast view
