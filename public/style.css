@@ -1045,3 +1045,21 @@ body::after {
     background: #ff6666;
     color: #000;
 }
+
+/* === MK-1 INTEGRATION BANNER === */
+.mk1-banner {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 0.8rem 1.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.mk1-banner-hint {
+    color: var(--text-tertiary);
+}

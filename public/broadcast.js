@@ -3,6 +3,30 @@
 
 const socket = io();
 
+// Detect if coming from mk-1
+(function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const fromMk1 = urlParams.get('from') === 'mk1';
+
+  if (fromMk1) {
+    showMk1Banner();
+  }
+
+  function showMk1Banner() {
+    const banner = document.createElement('div');
+    banner.className = 'mk1-banner';
+    banner.innerHTML = `
+      <span>broadcasting from mk-1</span>
+      <span class="mk1-banner-hint">enable "system audio" to capture your session</span>
+    `;
+
+    const header = document.querySelector('.header');
+    if (header) {
+      header.insertAdjacentElement('afterend', banner);
+    }
+  }
+})();
+
 // dom elements
 const micView = document.getElementById('mic-view');
 const sourceView = document.getElementById('source-view');
