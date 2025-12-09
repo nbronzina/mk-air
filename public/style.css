@@ -129,12 +129,11 @@ body::after {
 }
 
 .wordmark {
-    font-family: 'JetBrains Mono', monospace;
     font-weight: 500;
     letter-spacing: 0;
 }
 
-.separator {
+.wordmark .separator {
     opacity: 0.85;
     margin: 0;
     padding: 0;
