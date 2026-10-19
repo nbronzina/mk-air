@@ -327,6 +327,27 @@ socket.on('listener-count', (count) => {
   listenerCountEl.textContent = count;
 });
 
+// the server closes the room as soon as this socket drops, so the page must stop saying live
+socket.on('disconnect', () => {
+  if (!roomId) return;
+  roomId = null;
+  peers.forEach(peer => peer.close());
+  peers.clear();
+  const status = document.querySelector('#broadcast-view .stat-value.live');
+  if (status) {
+    status.textContent = 'off air';
+    status.classList.remove('live');
+  }
+  listenerCountEl.textContent = '0';
+  streamLinkInput.value = '';
+});
+
+socket.on('room-error', () => {
+  roomId = null;
+  startBtn.disabled = false;
+  startBtn.textContent = 'the radio is full · try again later';
+});
+
 // copy link
 copyLinkBtn.addEventListener('click', () => {
   streamLinkInput.select();
