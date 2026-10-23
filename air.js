@@ -262,9 +262,8 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
     socket.on('error', () => {});
     let path = '';
     try { path = new URL(req.url, 'http://x').pathname; } catch {}
-    if (path.startsWith('/socket.io/')) return;
     if (path !== '/air' && path !== '/air/') return reject(socket, '404 Not Found');
-    const ok = originAllowed(req.headers.origin, req.headers.host);
+    const ok = originAllowed(req.headers.origin);
     const full = wss.clients.size >= MAX_SOCKETS;
     wss.handleUpgrade(req, socket, head, ws => {
       if (!ok || full) {

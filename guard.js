@@ -16,10 +16,9 @@ function parsePattern(raw) {
 
 function originCheck(env = process.env) {
   const list = env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',') : DEFAULT_ORIGINS.slice();
-  if (env.RENDER_EXTERNAL_URL) list.push(env.RENDER_EXTERNAL_URL);
   const patterns = list.map(parsePattern).filter(Boolean);
 
-  return function allowed(origin, host) {
+  return function allowed(origin) {
     if (typeof origin !== 'string' || origin.length > 256) return false;
     let u;
     try {
@@ -29,7 +28,6 @@ function originCheck(env = process.env) {
     }
     // a browser sends the bare origin; anything else (paths, default ports, "null") is not one
     if (u.origin !== origin) return false;
-    if (typeof host === 'string' && u.host === host.toLowerCase()) return true;
     return patterns.some(p =>
       p.protocol === u.protocol && p.hostname === u.hostname && (p.port === '*' || p.port === u.port));
   };
@@ -43,7 +41,6 @@ function randomId() {
   return id;
 }
 
-// one id space and one cap for legacy and v1 rooms: the 50-room limit is the server's, not each transport's
 function registry(max) {
   const taken = new Set();
   return {

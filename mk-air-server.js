@@ -1,11 +1,9 @@
 // mk-air: signaling for a radio that forgets. audio goes peer to peer; rooms live only in memory
 
 const http = require('http');
-const path = require('path');
 const express = require('express');
 const { originCheck, registry } = require('./guard');
 const { createAir } = require('./air');
-const { createLegacy } = require('./legacy');
 
 const MAX_ROOMS = 50;
 const MAX_LISTENERS = 50;
@@ -23,14 +21,13 @@ app.disable('x-powered-by');
 const server = http.createServer(app);
 
 const air = createAir({ server, registry: ids, originAllowed, log, limits });
-createLegacy({ server, registry: ids, originAllowed, log, limits });
 
 app.use('/air', (req, res, next) => {
   const origin = req.headers.origin;
   res.set('Vary', 'Origin');
   res.set('Cache-Control', 'no-store');
   if (origin !== undefined) {
-    if (!originAllowed(origin, req.headers.host)) return res.status(403).json({ error: 'origin' });
+    if (!originAllowed(origin)) return res.status(403).json({ error: 'origin' });
     res.set('Access-Control-Allow-Origin', origin);
   }
   if (req.method === 'OPTIONS') {
@@ -45,19 +42,16 @@ app.get('/air/ice', (req, res) => {
   air.ice().then(body => res.json(body), () => res.json({ iceServers: [] }));
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+// the pages moved to play·ground; old links land there, a listen link on the same room
+const PAGE = 'https://nbronzina.github.io/playground/mk-air/';
+const ROOM = /^[a-z0-9]{6}$/;
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get(['/', '/broadcast', '/listen'], (req, res) => res.redirect(302, PAGE));
+app.get('/listen/:id', (req, res) => {
+  res.redirect(302, ROOM.test(req.params.id) ? `${PAGE}?r=${req.params.id}` : PAGE);
 });
 
-app.get('/broadcast', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'broadcast.html'));
-});
-
-app.get('/listen/:roomId', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'listen.html'));
-});
+app.use((req, res) => res.status(404).end());
 
 app.use((err, req, res, next) => {
   res.status(err && err.status && err.status < 500 ? err.status : 500).end();

@@ -3,7 +3,7 @@
 signaling for mk-air, the radio of [play·ground](https://nbronzina.github.io/playground/mk-air/).
 audio goes browser to browser. this server only introduces them, and keeps rooms in memory: nothing is recorded, nothing survives a restart.
 
-the pages live in play·ground (`mk-air/`, `air-client.js`). this repo runs on Render.
+the pages live in play·ground (`mk-air/`, `air-client.js`). this repo runs on Render. old links land there: `/` and `/broadcast` on mk-air/, `/listen/<id>` on mk-air/?r=<id>.
 
 ## endpoints
 
