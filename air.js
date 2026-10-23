@@ -1,5 +1,4 @@
 const { WebSocketServer, WebSocket } = require('ws');
-const crypto = require('crypto');
 const { hex, sameSecret, bucket, take, cleanText, isObj, cleanDescription, cleanCandidate } = require('./guard');
 
 const MAX_MESSAGE = 64 * 1024;
@@ -9,14 +8,34 @@ const PER_LISTENER_RATE = 10;
 const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] };
 const ID = /^[a-z0-9]{6}$/;
 const TOKEN = /^[0-9a-f]{32}$/;
-// a broadcaster fetches credentials once and opens a peer for every listener who arrives later; expired ones would block TURN for them
-const TURN_TTL = 24 * 3600;
+// the relay: when a listener's network won't take a direct line, the broadcaster's Opus packets come through this
+// server. Render's free tier allows 5 GB out a month and suspends the service past it, so the relay has a budget
+const RELAY_CHUNK = 4096;
+const RELAY_BYTES_PER_S = 16 * 1024;
+const RELAY_BACKLOG = 64 * 1024;
 
 function createAir({ server, registry, originAllowed, log, env = process.env, limits = {} }) {
   const maxListeners = limits.maxListeners || 50;
   const maxRate = limits.maxRate || 60;
   const graceMs = Number(env.AIR_GRACE_MS) || 20000;
   const heartbeatMs = Number(env.AIR_HEARTBEAT_MS) || 20000;
+  const relayMax = env.RELAY_MAX !== undefined ? Math.max(0, Number(env.RELAY_MAX) || 0) : 5;
+  const relayBudget = (env.RELAY_GB !== undefined ? Math.max(0, Number(env.RELAY_GB) || 0) : 4) * 1e9;
+  // past the budget nobody new gets in; past a tenth more, the ones still relayed are cut too
+  const relayHardStop = relayBudget * 1.1;
+  let relayed = 0;
+  let relayMonth = '';
+  let relayBytes = 0;
+
+  const month = () => new Date().toISOString().slice(0, 7);
+  function relaySpent() {
+    if (relayMonth !== month()) {
+      relayMonth = month();
+      relayBytes = 0;
+    }
+    return relayBytes;
+  }
+  const mb = () => Math.round(relayBytes / 1e6);
 
   const rooms = new Map();
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME, perMessageDeflate: false });
@@ -45,6 +64,8 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
     clearTimeout(room.grace);
     rooms.delete(room.id);
     registry.release(room.id);
+    relayed -= room.relays.size;
+    room.relays.clear();
     for (const l of room.listeners.values()) {
       send(l, { t: 'ended' });
       release(l);
@@ -80,6 +101,7 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
       const room = {
         id, token: hex(16), name, from, since: Date.now(),
         ws: null, listeners: new Map(), known: new Set(), grace: null,
+        canRelay: m.relay === true, relays: new Set(), relayConfig: null,
       };
       rooms.set(id, room);
       attach(room, ws);
@@ -104,10 +126,14 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
       clearTimeout(room.grace);
       room.grace = null;
       attach(room, ws);
+      if (typeof m.relay === 'boolean') room.canRelay = m.relay;
       send(ws, { t: 'live', id: room.id, token: room.token });
-      for (const lid of room.known) if (!room.listeners.has(lid)) send(ws, { t: 'listener-left', lid });
-      for (const lid of room.listeners.keys()) if (!room.known.has(lid)) send(ws, { t: 'listener', lid });
-      room.known = new Set(room.listeners.keys());
+      const direct = [...room.listeners.keys()].filter(lid => !room.relays.has(lid));
+      for (const lid of room.known) if (!direct.includes(lid)) send(ws, { t: 'listener-left', lid });
+      for (const lid of direct) if (!room.known.has(lid)) send(ws, { t: 'listener', lid });
+      room.known = new Set(direct);
+      // a recorder left running from before the drop stops if nobody needs the relay anymore
+      send(ws, { t: 'relay', on: room.relays.size > 0 });
       sendCount(room);
       if (wasPaused) for (const l of room.listeners.values()) send(l, { t: 'resumed' });
       log(`air · resumed · listeners ${room.listeners.size}`);
@@ -153,10 +179,89 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
       }
     },
 
+    relay(ws) {
+      if (ws.air.role !== 'l') return fail(ws, 'not-listening');
+      const room = ws.air.room;
+      const lid = ws.air.lid;
+      if (room.relays.has(lid)) return send(ws, { t: 'relay', ok: true });
+      const reason = !room.canRelay ? 'unsupported'
+        : !relayMax || !relayBudget ? 'off'
+        : relayed >= relayMax ? 'full'
+        : relaySpent() >= relayBudget ? 'spent'
+        : null;
+      if (reason) {
+        log(`air · relay refused (${reason})`);
+        return send(ws, { t: 'relay', ok: false, reason });
+      }
+      room.relays.add(lid);
+      relayed++;
+      // the broadcaster stops trying a direct line nobody will answer
+      if (room.known.delete(lid) && room.ws) send(room.ws, { t: 'listener-left', lid });
+      send(ws, { t: 'relay', ok: true });
+      if (room.relayConfig) send(ws, room.relayConfig);
+      if (room.relays.size === 1 && room.ws) send(room.ws, { t: 'relay', on: true });
+      log(`air · relay in · relayed ${relayed} · ${mb()} MB this month`);
+    },
+
+    'relay-config'(ws, m) {
+      if (ws.air.role !== 'b') return fail(ws, 'not-live');
+      if (!Number.isInteger(m.rate) || m.rate < 8000 || m.rate > 48000 || (m.channels !== 1 && m.channels !== 2)) {
+        return fail(ws, 'bad-message');
+      }
+      const room = ws.air.room;
+      room.relayConfig = { t: 'relay-config', rate: m.rate, channels: m.channels };
+      for (const lid of room.relays) send(room.listeners.get(lid), room.relayConfig);
+    },
+
     ping(ws) {
       send(ws, { t: 'pong' });
     },
   };
+
+  function dropRelay(room, lid) {
+    if (!room.relays.delete(lid)) return;
+    relayed--;
+    if (!room.relays.size && room.ws) send(room.ws, { t: 'relay', on: false });
+    log(`air · relay out · relayed ${relayed} · ${mb()} MB this month`);
+  }
+
+  function cutRelays() {
+    log(`air · relay spent · ${mb()} MB this month`);
+    for (const room of rooms.values()) {
+      for (const lid of [...room.relays]) {
+        send(room.listeners.get(lid), { t: 'relay', ok: false, reason: 'spent' });
+        dropRelay(room, lid);
+      }
+    }
+  }
+
+  function onAudio(ws, raw) {
+    const room = ws.air.role === 'b' ? ws.air.room : null;
+    // a packet in flight when the relay stopped is not an error
+    if (!room || !room.relays.size) return;
+    if (raw.length > RELAY_CHUNK) return fail(ws, 'too-big');
+    const t = Date.now();
+    const a = ws.air.audio;
+    if (t - a.since >= 1000) {
+      a.since = t;
+      a.bytes = 0;
+    }
+    if (a.bytes + raw.length > RELAY_BYTES_PER_S) return;
+    a.bytes += raw.length;
+    let sent = 0;
+    for (const lid of room.relays) {
+      const l = room.listeners.get(lid);
+      // a listener who can't keep up loses packets rather than piling them up here
+      if (!l || l.readyState !== WebSocket.OPEN || l.bufferedAmount > RELAY_BACKLOG) continue;
+      try {
+        l.send(raw, { binary: true });
+        sent += raw.length;
+      } catch {}
+    }
+    relaySpent();
+    relayBytes += sent;
+    if (relayBytes >= relayHardStop) cutRelays();
+  }
 
   function cleanSignal(d) {
     if (!isObj(d)) return null;
@@ -179,6 +284,7 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
     if (role === 'b' && room.ws === ws) {
       pause(room);
     } else if (role === 'l' && room.listeners.get(lid) === ws) {
+      dropRelay(room, lid);
       room.listeners.delete(lid);
       if (room.ws && room.known.has(lid)) {
         room.known.delete(lid);
@@ -199,7 +305,10 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
       ws.close(1008, 'rate');
       return;
     }
-    if (isBinary) return fail(ws, 'bad-message');
+    if (isBinary) {
+      if (ws.air.role !== 'b') return fail(ws, 'bad-message');
+      return onAudio(ws, raw);
+    }
     if (raw.length > MAX_MESSAGE) return fail(ws, 'too-big');
     let m;
     try {
@@ -214,7 +323,7 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
   }
 
   wss.on('connection', ws => {
-    ws.air = { alive: true, role: null, room: null, lid: null, bucket: bucket() };
+    ws.air = { alive: true, role: null, room: null, lid: null, bucket: bucket(), audio: { since: 0, bytes: 0 } };
     ws.on('pong', () => { ws.air.alive = true; });
     ws.on('error', () => {});
     ws.on('message', (raw, isBinary) => {
@@ -282,14 +391,7 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
   }
 
   function ice() {
-    const servers = [STUN];
-    const urls = (env.TURN_URLS || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (urls.length && env.TURN_SECRET) {
-      const username = `${Math.floor(Date.now() / 1000) + TURN_TTL}:${hex(8)}`;
-      const credential = crypto.createHmac('sha1', env.TURN_SECRET).update(username).digest('base64');
-      servers.push({ urls, username, credential });
-    }
-    return { iceServers: servers };
+    return { iceServers: [STUN] };
   }
 
   return { now, ice, wss, get rooms() { return rooms.size; } };

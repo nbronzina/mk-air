@@ -1,58 +1,38 @@
 # mk-air
 
 signaling for mk-air, the radio of [play·ground](https://nbronzina.github.io/playground/mk-air/).
-audio goes browser to browser. this server only introduces them, and keeps rooms in memory: nothing is recorded, nothing survives a restart.
+audio goes browser to browser. this server introduces them, and relays the sound for listeners whose network won't take a direct line. rooms live in memory: nothing is recorded, nothing survives a restart.
 
 the pages live in play·ground (`mk-air/`, `air-client.js`). this repo runs on Render.
 
 ## endpoints
 
-- `WebSocket /air` — signaling v1: `go-live`, `listen`, `signal`, `resume`, `end`; the server sends `count`, `paused`, `ended`
+- `WebSocket /air` — signaling v1: `go-live`, `listen`, `signal`, `resume`, `end`, `relay`; the server sends `count`, `paused`, `ended`. binary messages carry relayed audio
 - `GET /air/now` — who is on air
-- `GET /air/ice` — STUN, plus TURN when it is configured
+- `GET /air/ice` — the STUN servers browsers use to find a direct line
 
 ## environment
 
 | variable | what |
 |---|---|
-| `TURN_URLS`, `TURN_SECRET` | your own [coturn](https://github.com/coturn/coturn) with `use-auth-secret`. optional |
+| `RELAY_GB` | monthly budget for the relay, in GB. default 4; `0` turns the relay off |
+| `RELAY_MAX` | listeners on the relay at once, across every room. default 5 |
 | `ALLOWED_ORIGINS` | replaces the default origins (nbronzina.github.io, localhost, 127.0.0.1); comma separated, `:*` for any port |
 | `PORT` | set by Render |
 
-## TURN, optional
+## the relay
 
-without TURN, browsers connect directly (STUN). that works for most listeners; behind strict NAT, some company networks or some mobile carriers a listener sees "can't reach".
+browsers try a direct line first (STUN). some networks don't allow it: strict NAT, some company networks, some mobile carriers. for those listeners the sound comes through this server instead, over the same WebSocket:
 
-TURN relays the audio for them. coturn is free and open source, but it needs a machine with a public IP and open UDP ports, which Render doesn't offer: a computer at home with port forwarding, or a free VM.
+- the listener asks for it after 8 s without a direct line
+- the broadcaster records its stream as Opus at 48 kbps (MediaRecorder) and sends the packets; the server passes them on and keeps nothing
+- the listener decodes them (WebCodecs) and plays them under a second behind
 
-1. install coturn (`apt install coturn`) and write `/etc/turnserver.conf`:
+it costs this server's bandwidth: about 22 MB an hour per relayed listener. Render's free plan includes 5 GB a month and suspends the service until the next month when it runs out (it doesn't charge without a card). so the relay stops taking listeners at `RELAY_GB` and cuts the ones left at 10% more.
 
-   ```
-   listening-port=3478
-   min-port=49160
-   max-port=49200
-   realm=mk-air
-   use-auth-secret
-   static-auth-secret=<a long random string>
-   fingerprint
-   no-cli
-   no-multicast-peers
-   denied-peer-ip=10.0.0.0-10.255.255.255
-   denied-peer-ip=172.16.0.0-172.31.255.255
-   denied-peer-ip=192.168.0.0-192.168.255.255
-   total-quota=100
-   max-bps=64000
-   ```
+the count lives in memory: when Render puts the server to sleep (15 minutes with nobody connected), it starts again from zero. Render's dashboard shows the real monthly usage; lower `RELAY_GB` if it gets close.
 
-   behind a router, add `external-ip=<public ip>/<private ip>`. the quotas keep a stranger from using it as a free relay: 100 sessions, 64 KB/s each (a stereo stream at 128 kbps uses about 16). then `systemctl enable --now coturn` (older Debian packages also want `TURNSERVER_ENABLED=1` in `/etc/default/coturn`)
-
-2. open TCP and UDP 3478, and UDP 49160–49200
-3. Render → mk-air → Environment:
-   - `TURN_URLS` = `turn:<host>:3478?transport=udp,turn:<host>:3478?transport=tcp`
-   - `TURN_SECRET` = the same string as `static-auth-secret`
-4. check: `GET /air/ice` returns the `turn:` urls with a username
-
-credentials last a day, so a long set keeps working for listeners who arrive late.
+works for a broadcaster on Chrome, Edge or Firefox, and a listener on Chrome, Edge, Firefox on a computer, or Safari 26 and later. anywhere else the listener sees "can't reach", as before.
 
 ## run locally
 
