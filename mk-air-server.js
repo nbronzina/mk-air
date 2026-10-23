@@ -38,9 +38,7 @@ app.use('/air', (req, res, next) => {
 });
 
 app.get('/air/now', (req, res) => res.json(air.now()));
-app.get('/air/ice', (req, res) => {
-  air.ice().then(body => res.json(body), () => res.json({ iceServers: [] }));
-});
+app.get('/air/ice', (req, res) => res.json(air.ice()));
 
 // the pages moved to play·ground; old links land there, a listen link on the same room
 const PAGE = 'https://nbronzina.github.io/playground/mk-air/';
