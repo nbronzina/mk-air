@@ -9,12 +9,8 @@ const PER_LISTENER_RATE = 10;
 const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] };
 const ID = /^[a-z0-9]{6}$/;
 const TOKEN = /^[0-9a-f]{32}$/;
-const CF_TTL = 86400;
-const CF_REUSE_MS = 6 * 3600 * 1000;
-const CF_RETRY_MS = 60 * 1000;
-const CF_TIMEOUT_MS = 4000;
-// port 53 is on the browsers' bad-ports list: a candidate there only costs a timeout
-const BAD_PORT = /:53(\?|$)/;
+// a broadcaster fetches credentials once and opens a peer for every listener who arrives later; expired ones would block TURN for them
+const TURN_TTL = 24 * 3600;
 
 function createAir({ server, registry, originAllowed, log, env = process.env, limits = {} }) {
   const maxListeners = limits.maxListeners || 50;
@@ -285,65 +281,11 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
     return { rooms: list };
   }
 
-  // Cloudflare mints credentials good for a day; one call is reused for hours so listeners don't each wait on the API
-  let cf = null;
-  let cfPending = null;
-  let cfFailedAt = 0;
-
-  function cleanIce(list) {
-    const out = [];
-    for (const s of Array.isArray(list) ? list : [list]) {
-      if (!isObj(s)) continue;
-      const urls = (Array.isArray(s.urls) ? s.urls : [s.urls]).filter(u => typeof u === 'string' && !BAD_PORT.test(u));
-      if (!urls.length) continue;
-      const server = { urls };
-      if (typeof s.username === 'string' && typeof s.credential === 'string') {
-        server.username = s.username;
-        server.credential = s.credential;
-      }
-      out.push(server);
-    }
-    return out;
-  }
-
-  function cloudflare() {
-    if (!env.CF_TURN_KEY_ID || !env.CF_TURN_API_TOKEN) return null;
-    const t = Date.now();
-    if (cf && t - cf.at < CF_REUSE_MS) return cf.servers;
-    const usable = cf && t - cf.at < CF_TTL * 1000 - 3600 * 1000 ? cf.servers : null;
-    if (t - cfFailedAt < CF_RETRY_MS) return usable;
-    if (!cfPending) {
-      const url = `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(env.CF_TURN_KEY_ID)}/credentials/generate-ice-servers`;
-      cfPending = fetch(url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${env.CF_TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ttl: CF_TTL }),
-        signal: AbortSignal.timeout(CF_TIMEOUT_MS)
-      })
-        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`status ${r.status}`))))
-        .then(body => {
-          const servers = cleanIce(body && body.iceServers);
-          if (!servers.some(s => s.username)) throw new Error('no turn');
-          cf = { at: Date.now(), servers };
-          return servers;
-        })
-        .catch(e => {
-          cfFailedAt = Date.now();
-          log(`ice · cloudflare failed · ${e && e.message}`);
-          return usable;
-        })
-        .finally(() => { cfPending = null; });
-    }
-    return cfPending;
-  }
-
-  async function ice() {
-    const fromCloudflare = await cloudflare();
-    if (fromCloudflare) return { iceServers: fromCloudflare };
+  function ice() {
     const servers = [STUN];
     const urls = (env.TURN_URLS || '').split(',').map(s => s.trim()).filter(Boolean);
     if (urls.length && env.TURN_SECRET) {
-      const username = `${Math.floor(Date.now() / 1000) + 3600}:${hex(8)}`;
+      const username = `${Math.floor(Date.now() / 1000) + TURN_TTL}:${hex(8)}`;
       const credential = crypto.createHmac('sha1', env.TURN_SECRET).update(username).digest('base64');
       servers.push({ urls, username, credential });
     }
