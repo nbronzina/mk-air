@@ -1,120 +1,69 @@
-// mk-air server
-// handles webrtc signaling for ephemeral live streams
+// mk-air: signaling for a radio that forgets. audio goes peer to peer; rooms live only in memory
 
+const http = require('http');
 const express = require('express');
+const { originCheck, registry } = require('./guard');
+const { createAir } = require('./air');
+
+const MAX_ROOMS = 50;
+const MAX_LISTENERS = 50;
+const MAX_RATE = 60;
+
+// events and counts only: no ids, names, tokens or addresses reach the logs
+const log = msg => console.log(msg);
+
+const originAllowed = originCheck(process.env);
+const ids = registry(MAX_ROOMS);
+const limits = { maxListeners: MAX_LISTENERS, maxRate: MAX_RATE };
+
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  },
-  transports: ['websocket', 'polling'],
-  allowEIO3: true
-});
-const path = require('path');
+app.disable('x-powered-by');
+const server = http.createServer(app);
 
-// store active rooms
-const rooms = new Map();
+const air = createAir({ server, registry: ids, originAllowed, log, limits });
 
-// serve static files
-app.use(express.static('public'));
-
-// routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.use('/air', (req, res, next) => {
+  const origin = req.headers.origin;
+  res.set('Vary', 'Origin');
+  res.set('Cache-Control', 'no-store');
+  if (origin !== undefined) {
+    if (!originAllowed(origin)) return res.status(403).json({ error: 'origin' });
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Methods', 'GET');
+    return res.sendStatus(204);
+  }
+  next();
 });
 
-app.get('/broadcast', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'broadcast.html'));
+app.get('/air/now', (req, res) => res.json(air.now()));
+app.get('/air/ice', (req, res) => res.json(air.ice()));
+
+// the pages moved to play·ground; old links land there, a listen link on the same room
+const PAGE = 'https://nbronzina.github.io/playground/mk-air/';
+const ROOM = /^[a-z0-9]{6}$/;
+
+app.get(['/', '/broadcast', '/listen'], (req, res) => res.redirect(302, PAGE));
+app.get('/listen/:id', (req, res) => {
+  res.redirect(302, ROOM.test(req.params.id) ? `${PAGE}?r=${req.params.id}` : PAGE);
 });
 
-app.get('/listen/:roomId', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'listen.html'));
+app.use((req, res) => res.status(404).end());
+
+app.use((err, req, res, next) => {
+  res.status(err && err.status && err.status < 500 ? err.status : 500).end();
 });
 
-// socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('user connected:', socket.id);
+// losing the process loses every room on air; a bug in one handler must not take the others down
+process.on('uncaughtException', e => log(`uncaught ${e && e.name}`));
+process.on('unhandledRejection', e => log(`unhandled ${e && e.name}`));
 
-  // broadcaster creates room
-  socket.on('create-room', (roomId) => {
-    console.log('room created:', roomId);
-    socket.join(roomId);
-    rooms.set(roomId, {
-      broadcaster: socket.id,
-      listeners: new Set()
-    });
-    socket.emit('room-created', roomId);
-  });
-
-  // listener joins room
-  socket.on('join-room', (roomId) => {
-    const room = rooms.get(roomId);
-    
-    if (!room) {
-      console.log('room not found:', roomId);
-      socket.emit('room-not-found');
-      return;
-    }
-
-    console.log('listener joined room:', roomId, 'socket:', socket.id);
-    socket.join(roomId);
-    room.listeners.add(socket.id);
-    
-    // notify broadcaster
-    io.to(room.broadcaster).emit('listener-joined', socket.id);
-    
-    // send current listener count to all
-    io.to(roomId).emit('listener-count', room.listeners.size);
-  });
-
-  // webrtc signaling
-  socket.on('offer', (data) => {
-    console.log('offer sent to:', data.target);
-    socket.to(data.target).emit('offer', {
-      offer: data.offer,
-      broadcaster: socket.id
-    });
-  });
-
-  socket.on('answer', (data) => {
-    console.log('answer sent to:', data.target);
-    socket.to(data.target).emit('answer', {
-      answer: data.answer,
-      listener: socket.id
-    });
-  });
-
-  socket.on('ice-candidate', (data) => {
-    socket.to(data.target).emit('ice-candidate', {
-      candidate: data.candidate,
-      from: socket.id
-    });
-  });
-
-  // disconnect handling
-  socket.on('disconnect', () => {
-    console.log('user disconnected:', socket.id);
-    
-    // check if broadcaster disconnected
-    for (const [roomId, room] of rooms.entries()) {
-      if (room.broadcaster === socket.id) {
-        // notify all listeners stream ended
-        io.to(roomId).emit('stream-ended');
-        rooms.delete(roomId);
-        console.log('room closed:', roomId);
-      } else if (room.listeners.has(socket.id)) {
-        // remove listener
-        room.listeners.delete(socket.id);
-        io.to(roomId).emit('listener-count', room.listeners.size);
-        console.log('listener left room:', roomId);
-      }
-    }
-  });
+const PORT = Number(process.env.PORT) || 3000;
+server.on('error', e => {
+  log(`server error ${e && e.code}`);
+  process.exit(1);
 });
-
-const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-  console.log(`mk-air server running on port ${PORT}`);
+server.listen(PORT, () => {
+  log(`mk-air on port ${PORT}`);
 });
