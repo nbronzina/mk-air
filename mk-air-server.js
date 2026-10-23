@@ -41,7 +41,9 @@ app.use('/air', (req, res, next) => {
 });
 
 app.get('/air/now', (req, res) => res.json(air.now()));
-app.get('/air/ice', (req, res) => res.json(air.ice()));
+app.get('/air/ice', (req, res) => {
+  air.ice().then(body => res.json(body), () => res.json({ iceServers: [] }));
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
