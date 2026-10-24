@@ -10,11 +10,13 @@ the pages live in play·ground (`mk-air/`, `air-client.js`). this repo runs on R
 - `WebSocket /air` — signaling v1: `go-live`, `listen`, `signal`, `resume`, `end`, `relay`; the server sends `count`, `paused`, `ended`. binary messages carry relayed audio
 - `GET /air/now` — who is on air
 - `GET /air/ice` — the STUN servers browsers use to find a direct line
+- `POST /air/owner` — body: a key as plain text; answers `{ ok }` when it is `N0BODY_KEY`. Ten checks a minute in all
 
 ## environment
 
 | variable | what |
 |---|---|
+| `N0BODY_KEY` | the owner's key for n0body: only who holds it goes on air under that name and opens its page. Unset, nobody does |
 | `RELAY_GB` | monthly budget for the relay, in GB. default 4; `0` turns the relay off |
 | `RELAY_MAX` | listeners on the relay at once, across every room. default 5 |
 | `ALLOWED_ORIGINS` | replaces the default origins (nbronzina.github.io, localhost, 127.0.0.1); comma separated, `:*` for any port |

@@ -14,6 +14,10 @@ const RELAY_CHUNK = 4096;
 const RELAY_BYTES_PER_S = 16 * 1024;
 const RELAY_BACKLOG = 64 * 1024;
 
+// n0body is nicolás's: only the holder of N0BODY_KEY goes on air under its name. Spaces, dots and dashes
+// don't make another name, and without the key set nobody gets it at all
+const isReserved = name => name.toLowerCase().replace(/[\s._-]/g, '') === 'n0body';
+
 function createAir({ server, registry, originAllowed, log, env = process.env, limits = {} }) {
   const maxListeners = limits.maxListeners || 50;
   const maxRate = limits.maxRate || 60;
@@ -26,6 +30,8 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
   let relayed = 0;
   let relayMonth = '';
   let relayBytes = 0;
+
+  const ownerKey = key => !!env.N0BODY_KEY && typeof key === 'string' && key.length <= 256 && sameSecret(key, env.N0BODY_KEY);
 
   const month = () => new Date().toISOString().slice(0, 7);
   function relaySpent() {
@@ -96,6 +102,10 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
       const name = cleanText(m.name, 40);
       const from = cleanText(m.from, 16);
       if (name === null || from === null) return fail(ws, 'bad-message');
+      if (isReserved(name) && !ownerKey(m.key)) {
+        log('air · reserved name refused');
+        return fail(ws, 'reserved');
+      }
       const id = registry.reserve();
       if (!id) return fail(ws, 'full');
       const room = {
@@ -393,7 +403,7 @@ function createAir({ server, registry, originAllowed, log, env = process.env, li
     return { iceServers: [STUN] };
   }
 
-  return { now, ice, wss, get rooms() { return rooms.size; } };
+  return { now, ice, ownerKey, wss, get rooms() { return rooms.size; } };
 }
 
 module.exports = { createAir };

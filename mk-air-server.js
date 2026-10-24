@@ -40,6 +40,17 @@ app.use('/air', (req, res, next) => {
 app.get('/air/now', (req, res) => res.json(air.now()));
 app.get('/air/ice', (req, res) => res.json(air.ice()));
 
+// n0body's page asks whether the key it holds is the owner's. Plain text keeps it a simple request (no preflight);
+// ten checks a minute for everyone together keeps guessing slow
+let ownerChecks = { since: 0, count: 0 };
+app.post('/air/owner', express.text({ limit: '1kb', type: () => true }), (req, res) => {
+  if (Date.now() - ownerChecks.since > 60000) ownerChecks = { since: Date.now(), count: 0 };
+  if (++ownerChecks.count > 10) return res.status(429).json({ ok: false });
+  const ok = air.ownerKey(typeof req.body === 'string' ? req.body.trim() : '');
+  log(`air · owner check ${ok ? 'ok' : 'refused'}`);
+  res.json({ ok });
+});
+
 // the pages moved to play·ground; old links land there, a listen link on the same room
 const PAGE = 'https://nbronzina.github.io/playground/mk-air/';
 const ROOM = /^[a-z0-9]{6}$/;
